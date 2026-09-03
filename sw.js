@@ -1,7 +1,7 @@
 /* 學務處查詢系統 Service Worker
    策略：network-first，網路失敗時回落到快取。
    改版時把 VERSION 加一，activate 會自動清掉舊快取。 */
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = 'sa-hub-' + VERSION;
 
 // app shell：相對路徑，才能在 GitHub Pages 子路徑下正常運作
@@ -10,7 +10,9 @@ const ASSETS = [
   './index.html',
   './manifest.webmanifest',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', event => {

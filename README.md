@@ -5,6 +5,7 @@
 - 純靜態網站：只有原生 HTML / CSS / JavaScript，沒有 build tool、沒有 npm、沒有外部 CDN。
 - 支援離線開啟（Service Worker 快取），深色模式自動跟隨系統。
 - 可加「常用」（星號），記在瀏覽器 localStorage（key：`sa-hub-favorites`）。
+- 首頁會視情況顯示「安裝到主畫面」提示，Android 可一鍵安裝。
 
 ## 檔案
 
@@ -13,7 +14,11 @@
 | `index.html` | 主體，所有 CSS / JS 都在裡面。**要維護的資料也在這裡** |
 | `manifest.webmanifest` | PWA 設定（名稱、圖示、顏色） |
 | `sw.js` | Service Worker，network-first、失敗回落快取 |
-| `icons/icon-192.png`、`icons/icon-512.png` | App 圖示 |
+| `icons/icon-192.png`、`icons/icon-512.png` | App 圖示（圓角、四角透明） |
+| `icons/icon-maskable-512.png` | Android 用；系統會裁成圓形，內容已縮在安全區內 |
+| `icons/apple-touch-icon.png` | iOS 用；**不透明**，否則加到主畫面四角會透出黑邊 |
+| `qr.png` | 推廣用 QR code（含網址文字，可直接列印） |
+| `tools/make_icons.py`、`tools/make_qr.py` | 重新產生上面那些圖的腳本，網站本身不會用到 |
 
 ---
 
@@ -100,6 +105,39 @@ git push
 3. 按 **安裝**
 
 裝好後從主畫面點開，會是全螢幕、沒有網址列，跟 App 一樣。
+
+---
+
+## 4. 推廣與安裝
+
+### QR code
+
+`qr.png` 可以直接列印或貼進公告、LINE 群組，掃了就會開啟網站。網頁最下方也有「推廣用 QR code（可列印）」的連結。
+
+換網址的話，改 `tools/make_qr.py` 最上面的 `URL` 再跑一次：
+
+```bash
+python3 tools/make_qr.py
+```
+
+（需要 `pip3 install --user segno pillow`。QR 用錯誤更正等級 H，列印後髒污或折到一角仍掃得到。）
+
+### 網頁內建的安裝提示
+
+- **Android Chrome**：瀏覽器判定符合 PWA 條件時會觸發 `beforeinstallprompt`，網頁攔下它，改成顯示「安裝到主畫面」卡片，按「安裝」就跳出系統安裝視窗。
+- **iOS Safari**：Apple 沒有提供這個 API，只能顯示文字步驟「點下方分享鍵 → 選加入主畫面」。
+- 已經安裝過（`display-mode: standalone`）就不再顯示。
+- 使用者按「✕」關掉後不再出現，記錄在 localStorage 的 `sa-hub-install-dismissed`；要讓它重新出現就清掉這個 key。
+
+### 換 App 圖示
+
+改 `tools/make_icons.py` 最上面的 `TEXT_TOP` / `TEXT_BOTTOM`（目前是「光復」「學務」）或顏色，然後：
+
+```bash
+python3 tools/make_icons.py
+```
+
+四張圖會一次重產。**改完記得把 `sw.js` 的 `VERSION` 加一**，否則手機會繼續用舊快取裡的舊圖示。
 
 ---
 

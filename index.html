@@ -11,7 +11,7 @@
 <!-- PWA：全部使用相對路徑，才能部署在 GitHub Pages 專案頁的子路徑底下 -->
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -203,6 +203,52 @@ main{
 .fav[aria-pressed="true"]{color:var(--star);}
 .fav:focus-visible{outline:3px solid var(--focus);outline-offset:-3px;}
 
+/* ---------- 安裝提示 ---------- */
+.install{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-left:4px solid var(--brand);
+  border-radius:12px;
+  padding:12px 12px 12px 14px;
+  margin:0 0 20px;
+}
+.install[hidden]{display:none;}
+.install-text{flex:1 1 auto;display:flex;flex-direction:column;gap:2px;min-width:0;}
+.install-text strong{font-size:16px;}
+.install-text span{font-size:13px;color:var(--text-dim);}
+#install-btn{
+  flex:0 0 auto;
+  min-height:48px;
+  padding:0 18px;
+  font-size:16px;
+  font-family:inherit;
+  font-weight:600;
+  color:var(--brand-text);
+  background:var(--brand);
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+}
+#install-btn:active{background:#16283f;}
+#install-close{
+  flex:0 0 auto;
+  width:48px;height:48px;
+  background:none;border:none;
+  color:var(--text-dim);
+  font-size:18px;
+  cursor:pointer;
+  border-radius:10px;
+}
+#install-close:active{background:var(--press);}
+@media (prefers-color-scheme: dark){
+  .install{border-left-color:var(--focus);}
+  #install-btn{background:var(--focus);color:#0f1419;}
+  #install-btn:active{background:#5f97cf;}
+}
+
 .empty{
   padding:24px 4px;
   color:var(--text-dim);
@@ -218,6 +264,8 @@ footer{
   padding-right:calc(16px + env(safe-area-inset-right));
   padding-bottom:calc(24px + env(safe-area-inset-bottom));
 }
+.qr-tip{margin-top:10px;}
+.qr-tip a{color:var(--focus);}
 .tip{
   background:var(--surface);
   border:1px solid var(--border);
@@ -239,10 +287,21 @@ footer{
   </div>
 </header>
 
-<main id="list" aria-live="polite"></main>
+<main>
+  <div id="install" class="install" hidden>
+    <div class="install-text">
+      <strong>安裝到主畫面</strong>
+      <span id="install-hint">免記網址，一點就開</span>
+    </div>
+    <button id="install-btn" type="button">安裝</button>
+    <button id="install-close" type="button" aria-label="不再顯示">✕</button>
+  </div>
+  <div id="list" aria-live="polite"></div>
+</main>
 
 <footer>
   <p class="tip">若出現「你沒有存取權」，請在 Google 頁面右上角切換為校內帳號（@kfps.tp.edu.tw）。</p>
+  <p class="tip qr-tip"><a href="./qr.png" target="_blank" rel="noopener">推廣用 QR code（可列印）</a></p>
 </footer>
 
 <script>
@@ -368,6 +427,76 @@ footer{
   });
 
   render();
+
+  /* ---------- 安裝到主畫面 ---------- */
+  var DISMISS_KEY = 'sa-hub-install-dismissed';
+  var installEl = document.getElementById('install');
+  var installBtn = document.getElementById('install-btn');
+  var installHint = document.getElementById('install-hint');
+  var installClose = document.getElementById('install-close');
+  var deferredPrompt = null;
+
+  function isStandalone(){
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+  }
+  function dismissed(){
+    try{ return localStorage.getItem(DISMISS_KEY) === '1'; }catch(e){ return false; }
+  }
+  function hideInstall(){ installEl.hidden = true; }
+
+  function showInstall(mode){
+    if(isStandalone() || dismissed()) return;
+    if(mode === 'ios'){
+      installBtn.hidden = true;
+      installHint.textContent = '點下方「分享」鍵 → 選「加入主畫面」';
+    }else{
+      installBtn.hidden = false;
+      installHint.textContent = '免記網址，一點就開';
+    }
+    installEl.hidden = false;
+  }
+
+  // Android Chrome：攔下系統安裝提示，改由我們的按鈕觸發
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstall('prompt');
+  });
+
+  installBtn.addEventListener('click', function(){
+    if(!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function(){
+      deferredPrompt = null;
+      hideInstall();
+    });
+  });
+
+  installClose.addEventListener('click', function(){
+    try{ localStorage.setItem(DISMISS_KEY, '1'); }catch(e){}
+    hideInstall();
+  });
+
+  window.addEventListener('appinstalled', function(){
+    deferredPrompt = null;
+    hideInstall();
+  });
+
+  // iOS Safari 沒有 beforeinstallprompt，只能顯示操作步驟。
+  // iPadOS 13 之後 Safari 的 UA 會自稱 Macintosh，只能靠觸控點數補判；
+  // 排除 Android，避免桌機或模擬環境誤判。
+  var ua = navigator.userAgent;
+  var isIOS = /iPad|iPhone|iPod/.test(ua) ||
+              (navigator.platform === 'MacIntel' &&
+               navigator.maxTouchPoints > 1 &&
+               !/Android/.test(ua));
+  var isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|Android/.test(ua);
+  if(isIOS && isSafari){
+    // 延後一下：若瀏覽器其實支援安裝事件（beforeinstallprompt 會先觸發），
+    // 就讓安裝按鈕優先，不要顯示 iOS 的手動步驟
+    setTimeout(function(){ if(!deferredPrompt) showInstall('ios'); }, 1200);
+  }
 
   /* ---------- Service Worker（相對路徑，支援 GitHub Pages 子路徑） ---------- */
   if('serviceWorker' in navigator){
