@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>學務處查詢系統</title>
+<meta name="description" content="學務處各項查詢系統的行動版入口">
+<meta name="theme-color" content="#1e3a5f">
+<meta name="color-scheme" content="light dark">
+
+<!-- PWA：全部使用相對路徑，才能部署在 GitHub Pages 專案頁的子路徑底下 -->
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="學務查詢">
+
+<script>
+/* =======================================================================
+   ★★★ 唯一需要維護的地方：SITES 陣列 ★★★
+
+   要新增一個查詢系統，就在下面陣列裡複製一組 { ... } 貼上，然後修改：
+
+     id       必填。英文小寫代號，不可與其他項目重複。
+              （這是「常用」記錄用的識別碼，改了會讓使用者的星號失效）
+     name     必填。顯示在卡片上的名稱。
+     category 必填。分類名稱；同一個分類的項目會被歸在同一區。
+              打新的分類名稱就會自動出現新的一區，順序依第一次出現的先後。
+     note     選填。卡片上的小字備註；不需要備註就留成空字串 ''。
+     url      必填。點擊後開新分頁前往的網址。
+
+   範例：
+     { id: 'health', name: '健康中心', category: '衛生保健', note: '',
+       url: 'https://example.com/' },
+
+   刪除項目就整組 { ... } 刪掉即可。修改後存檔、推上 GitHub 就會更新。
+   ======================================================================= */
+const SITES = [
+  { id: 'roster',    name: '學生名冊查詢', category: '學生資料', note: '需登入校內 Google 帳號',
+    url: 'https://script.google.com/a/macros/kfps.tp.edu.tw/s/AKfycbxhNpnrLIEacNt6k6QhR9PaToegED1hOw4DG9Op018Nj9mVDnpD4q5wgjGE_HA-rTJt/exec' },
+  { id: 'timetable', name: '課表查詢',     category: '課務',     note: '',
+    url: 'https://cheery-toffee-528cfd.netlify.app/' },
+  { id: 'afterclass',name: '課後活動',     category: '活動',     note: '需登入校內 Google 帳號',
+    url: 'https://script.google.com/a/macros/kfps.tp.edu.tw/s/AKfycbwH_DIqPnPKNaU0GoW_NAPV7Eh9PukUPXeNfx2ivDXaNNPTH8xns35vYqHz5JzldT2y/exec' },
+  { id: 'fieldtrip', name: '校外教學',     category: '活動',     note: '',
+    url: 'https://kfsa00-dot.github.io/field-trip-announcement/' },
+];
+</script>
+
+<style>
+:root{
+  --bg:#f2f4f7;
+  --surface:#ffffff;
+  --border:#d8dde5;
+  --text:#16202c;
+  --text-dim:#5c6875;
+  --brand:#1e3a5f;
+  --brand-text:#ffffff;
+  --star:#e0a700;
+  --press:#e6ebf2;
+  --focus:#2b6cb0;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#12161b;
+    --surface:#1c222a;
+    --border:#333d49;
+    --text:#eef2f6;
+    --text-dim:#a3aeba;
+    --brand:#1e3a5f;
+    --brand-text:#ffffff;
+    --star:#ffcc33;
+    --press:#2a323c;
+    --focus:#7fb3e8;
+  }
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,"PingFang TC","Noto Sans TC","Microsoft JhengHei",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-size:17px;
+  line-height:1.5;
+  -webkit-text-size-adjust:100%;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ---------- 置頂列 ---------- */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:10;
+  background:var(--brand);
+  color:var(--brand-text);
+  padding:12px 16px 12px;
+  padding-top:calc(12px + env(safe-area-inset-top));
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
+  border-bottom:1px solid rgba(0,0,0,.2);
+}
+.topbar h1{
+  margin:0 0 10px;
+  font-size:20px;
+  font-weight:700;
+  letter-spacing:.5px;
+}
+.search-wrap{position:relative;}
+#search{
+  width:100%;
+  min-height:48px;
+  padding:0 44px 0 14px;
+  font-size:17px;
+  font-family:inherit;
+  color:var(--text);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:10px;
+  appearance:none;
+}
+#search::placeholder{color:var(--text-dim);}
+#search:focus{outline:3px solid var(--focus);outline-offset:1px;}
+#clear{
+  position:absolute;
+  top:0;right:0;
+  width:48px;height:48px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:none;border:none;
+  color:var(--text-dim);
+  font-size:22px;
+  cursor:pointer;
+  border-radius:10px;
+}
+#clear.show{display:flex;}
+#clear:active{background:var(--press);}
+
+/* ---------- 內容 ---------- */
+main{
+  padding:16px;
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
+  max-width:720px;
+  margin:0 auto;
+}
+.section{margin:0 0 24px;}
+.section h2{
+  margin:0 0 10px;
+  font-size:15px;
+  font-weight:700;
+  color:var(--text-dim);
+  letter-spacing:1px;
+  padding-left:2px;
+  border-left:4px solid var(--brand);
+  padding-left:10px;
+}
+@media (prefers-color-scheme: dark){
+  .section h2{border-left-color:var(--focus);}
+}
+
+.card{
+  display:flex;
+  align-items:stretch;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  margin-bottom:10px;
+  overflow:hidden;
+}
+.card-link{
+  flex:1 1 auto;
+  min-height:64px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:2px;
+  padding:12px 8px 12px 16px;
+  text-decoration:none;
+  color:var(--text);
+}
+.card-link:active{background:var(--press);}
+.card-name{font-size:18px;font-weight:600;}
+.card-note{font-size:13px;color:var(--text-dim);}
+.card-link:focus-visible{outline:3px solid var(--focus);outline-offset:-3px;}
+
+.fav{
+  flex:0 0 auto;
+  width:56px;
+  min-height:48px;
+  background:none;
+  border:none;
+  border-left:1px solid var(--border);
+  color:var(--text-dim);
+  font-size:24px;
+  line-height:1;
+  cursor:pointer;
+}
+.fav:active{background:var(--press);}
+.fav[aria-pressed="true"]{color:var(--star);}
+.fav:focus-visible{outline:3px solid var(--focus);outline-offset:-3px;}
+
+.empty{
+  padding:24px 4px;
+  color:var(--text-dim);
+  text-align:center;
+}
+
+/* ---------- 底部提示 ---------- */
+footer{
+  max-width:720px;
+  margin:0 auto;
+  padding:16px;
+  padding-left:calc(16px + env(safe-area-inset-left));
+  padding-right:calc(16px + env(safe-area-inset-right));
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+}
+.tip{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:14px 16px;
+  font-size:14px;
+  color:var(--text-dim);
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>學務處查詢系統</h1>
+  <div class="search-wrap">
+    <input id="search" type="search" inputmode="search" autocomplete="off"
+           enterkeyhint="search" placeholder="搜尋名稱或分類…" aria-label="搜尋查詢系統">
+    <button id="clear" type="button" aria-label="清除搜尋">✕</button>
+  </div>
+</header>
+
+<main id="list" aria-live="polite"></main>
+
+<footer>
+  <p class="tip">若出現「你沒有存取權」，請在 Google 頁面右上角切換為校內帳號（@kfps.tp.edu.tw）。</p>
+</footer>
+
+<script>
+(function(){
+  'use strict';
+
+  var FAV_KEY = 'sa-hub-favorites';
+  var listEl = document.getElementById('list');
+  var searchEl = document.getElementById('search');
+  var clearEl = document.getElementById('clear');
+
+  /* ---------- 常用（localStorage） ---------- */
+  function loadFavs(){
+    try{
+      var raw = localStorage.getItem(FAV_KEY);
+      var arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(e){ return []; }
+  }
+  function saveFavs(arr){
+    try{ localStorage.setItem(FAV_KEY, JSON.stringify(arr)); }catch(e){}
+  }
+  var favs = loadFavs();
+  function isFav(id){ return favs.indexOf(id) !== -1; }
+  function toggleFav(id){
+    var i = favs.indexOf(id);
+    if(i === -1){ favs.push(id); } else { favs.splice(i,1); }
+    saveFavs(favs);
+    render();
+  }
+
+  /* ---------- 畫面 ---------- */
+  function makeCard(site){
+    var card = document.createElement('div');
+    card.className = 'card';
+
+    var a = document.createElement('a');
+    a.className = 'card-link';
+    a.href = site.url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+
+    var name = document.createElement('span');
+    name.className = 'card-name';
+    name.textContent = site.name;
+    a.appendChild(name);
+
+    if(site.note){
+      var note = document.createElement('span');
+      note.className = 'card-note';
+      note.textContent = site.note;
+      a.appendChild(note);
+    }
+    card.appendChild(a);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'fav';
+    var on = isFav(site.id);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', (on ? '從常用移除：' : '加入常用：') + site.name);
+    btn.textContent = on ? '★' : '☆';
+    btn.addEventListener('click', function(){ toggleFav(site.id); });
+    card.appendChild(btn);
+
+    return card;
+  }
+
+  function makeSection(title, sites){
+    var sec = document.createElement('section');
+    sec.className = 'section';
+    var h = document.createElement('h2');
+    h.textContent = title;
+    sec.appendChild(h);
+    sites.forEach(function(s){ sec.appendChild(makeCard(s)); });
+    return sec;
+  }
+
+  function matches(site, q){
+    if(!q) return true;
+    return (site.name + ' ' + site.category).toLowerCase().indexOf(q) !== -1;
+  }
+
+  function render(){
+    var q = searchEl.value.trim().toLowerCase();
+    clearEl.className = q ? 'show' : '';
+
+    var hits = SITES.filter(function(s){ return matches(s, q); });
+    listEl.textContent = '';
+
+    if(hits.length === 0){
+      var p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = '找不到符合的項目';
+      listEl.appendChild(p);
+      return;
+    }
+
+    // 常用區置頂；已加入常用的項目不再重複出現在原分類
+    var faved = hits.filter(function(s){ return isFav(s.id); });
+    var rest  = hits.filter(function(s){ return !isFav(s.id); });
+
+    if(faved.length){
+      listEl.appendChild(makeSection('★ 常用', faved));
+    }
+
+    var order = [];
+    var groups = {};
+    rest.forEach(function(s){
+      if(!groups[s.category]){ groups[s.category] = []; order.push(s.category); }
+      groups[s.category].push(s);
+    });
+    order.forEach(function(cat){
+      listEl.appendChild(makeSection(cat, groups[cat]));
+    });
+  }
+
+  searchEl.addEventListener('input', render);
+  clearEl.addEventListener('click', function(){
+    searchEl.value = '';
+    render();
+    searchEl.focus();
+  });
+
+  render();
+
+  /* ---------- Service Worker（相對路徑，支援 GitHub Pages 子路徑） ---------- */
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
+        .catch(function(err){ console.log('SW 註冊失敗：', err); });
+    });
+  }
+})();
+</script>
+</body>
+</html>
