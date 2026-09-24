@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>巡堂觀課</title>
+<meta name="description" content="臺北市信義區光復國民小學 教學巡堂暨觀課紀錄系統">
+<meta name="theme-color" content="#16307d">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="巡堂觀課">
+<style>
+:root{--brand:#16307d;--brand-2:#2a4bb8;--ink:#1a2230;--ink-3:#818da4;--line:#dde3ee}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;min-height:100%}
+body{
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  background:#f2f5fa;color:var(--ink);display:grid;place-items:center;
+  min-height:100svh;padding:24px calc(16px + env(safe-area-inset-left)) 24px;
+  text-align:center
+}
+.box{max-width:340px;width:100%}
+.crest{width:120px;height:120px;display:block;margin:0 auto 18px}
+h1{font-size:20px;margin:0 0 2px;letter-spacing:1px;color:var(--brand)}
+p.sub{margin:0;font-size:13.5px;color:var(--ink-3);letter-spacing:.5px}
+.bar{height:4px;border-radius:2px;margin:18px auto;max-width:180px;
+  background:linear-gradient(90deg,#c33 0 33.3%,#1a3ee8 33.3% 66.6%,#159c37 66.6% 100%)}
+a.go{display:block;margin:0 auto;padding:14px 20px;border-radius:12px;text-decoration:none;
+  background:linear-gradient(140deg,var(--brand-2),var(--brand));color:#fff;font-weight:700;
+  font-size:16px;box-shadow:0 3px 12px rgba(22,48,125,.28)}
+a.go:active{opacity:.85}
+.status{margin-top:14px;font-size:13px;color:var(--ink-3);min-height:20px}
+.tip{margin-top:26px;font-size:12.5px;color:var(--ink-3);line-height:1.8;
+  border-top:1px solid var(--line);padding-top:16px;text-align:left}
+.tip b{color:var(--ink)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+  border-top-color:var(--brand);border-radius:50%;animation:s .8s linear infinite;
+  vertical-align:-2px;margin-right:6px}
+@keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="box">
+  <img class="crest" src="./crest.png" alt="光復國小校徽">
+  <h1>教學巡堂暨觀課紀錄</h1>
+  <p class="sub">臺北市信義區光復國民小學</p>
+  <div class="bar"></div>
+
+  <a class="go" id="go" href="#">開啟系統</a>
+  <div class="status" id="status"><span class="spin"></span>正在開啟…</div>
+
+  <div class="tip" id="tip" hidden>
+    <b>把它加到主畫面</b><br>
+    iPhone：Safari 下方「分享」→ 加入主畫面<br>
+    Android：Chrome 右上「⋮」→ 安裝應用程式／加到主畫面
+  </div>
+</div>
+
+<script>
+/* 巡堂系統網址。改版換網址時只要改這一行。 */
+const APP_URL = 'https://script.google.com/a/macros/kfps.tp.edu.tw/s/AKfycbxVcozuEiwCAljx5tqz_cj6FJ_zAPoHFmRkUfqR7bvqTupy4V0vTPvIzbbHSK0wIhYcZw/exec';
+
+document.getElementById('go').href = APP_URL;
+
+const standalone = window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+
+// 已加到主畫面（獨立視窗）才自動跳轉；在瀏覽器裡瀏覽時停在這頁，方便使用者加到主畫面
+if (standalone) {
+  setTimeout(() => location.replace(APP_URL), 400);
+} else {
+  document.getElementById('status').textContent = '';
+  document.getElementById('tip').hidden = false;
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
