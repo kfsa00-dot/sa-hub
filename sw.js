@@ -3,7 +3,7 @@
    ★ 只要改了 index.html 的內容（例如 SITES 清單），就把 VERSION 加一。
      否則手機只要有一次抓不到網路，就會回退到舊版本的快取並一直卡著。
      activate 時會自動清掉所有舊版本的快取。 */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = 'sa-hub-' + VERSION;
 
 // app shell：相對路徑，才能在 GitHub Pages 子路徑下正常運作
