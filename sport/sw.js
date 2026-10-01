@@ -1,7 +1,7 @@
 /* 運動專長檢核 主畫面捷徑 Service Worker
    只快取這個跳板頁本身；系統本體（script.google.com）一律走網路，不快取。
    改版時把 VERSION 加一，activate 會自動清掉舊快取。 */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'sport-launch-' + VERSION;
 
 const ASSETS = [

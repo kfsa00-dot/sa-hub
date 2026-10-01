@@ -35,6 +35,8 @@ a.go{display:block;margin:0 auto;padding:14px 20px;border-radius:12px;text-decor
   font-size:16px;box-shadow:0 3px 12px rgba(22,48,125,.28)}
 a.go:active{opacity:.85}
 .status{margin-top:14px;font-size:13px;color:var(--ink-3);min-height:20px}
+.how{margin:10px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.7}
+.how a{color:var(--brand-2)}
 .tip{margin-top:26px;font-size:12.5px;color:var(--ink-3);line-height:1.8;
   border-top:1px solid var(--line);padding-top:16px;text-align:left}
 .tip b{color:var(--ink)}
@@ -52,7 +54,9 @@ a.go:active{opacity:.85}
   <p class="sub">田徑・籃球・桌球・樂樂棒球</p>
   <div class="bar"></div>
 
-  <a class="go" id="go" href="#">開啟系統</a>
+  <a class="go" id="go" href="#">用學校帳號登入，開啟系統</a>
+  <p class="how">會先請你選擇 <b>@kfps.tp.edu.tw</b> 學校帳號；<br>沒有看到自己的帳號，請按「使用其他帳戶」登入。<br>
+    <a id="direct" href="#">已登入學校帳號？直接開啟</a></p>
   <div class="status" id="status"><span class="spin"></span>正在開啟…</div>
 
   <div class="tip" id="tip" hidden>
@@ -66,8 +70,12 @@ a.go:active{opacity:.85}
 <script>
 /* 運動專長檢核系統網址。改版換網址時只要改這一行。 */
 const APP_URL = 'https://script.google.com/a/macros/kfps.tp.edu.tw/s/AKfycbxQv7HhazIrCMoHJmhqR3leyrlYdm0B7dokaYirS6LRRRtFNEmZa3diDZfVfGNuOHw2xg/exec';
+/* 系統只開放學校網域帳號：瀏覽器只登入個人 Gmail 時，直接開 APP_URL 會被 Google 擋下。
+   所以先經過 Google 帳戶選擇頁（hd＝只列學校網域的帳號，也可「使用其他帳戶」登入），選好後自動回到系統。 */
+const LOGIN_URL = 'https://accounts.google.com/AccountChooser?hd=kfps.tp.edu.tw&continue=' + encodeURIComponent(APP_URL);
 
-document.getElementById('go').href = APP_URL;
+document.getElementById('go').href = LOGIN_URL;
+document.getElementById('direct').href = APP_URL;
 
 const standalone = window.matchMedia('(display-mode: standalone)').matches ||
                    window.navigator.standalone === true;
@@ -77,7 +85,7 @@ const statusEl = document.getElementById('status');
 /* 轉圈只在剛開啟的一兩秒顯示；沒跳過去（或從系統返回這頁）就改成提示按按鈕 */
 function idle() { statusEl.textContent = '沒有自動開啟的話，請按上方「開啟系統」'; }
 if (standalone) {
-  setTimeout(() => location.replace(APP_URL), 300);
+  setTimeout(() => location.replace(LOGIN_URL), 300);
   setTimeout(idle, 2500);
   window.addEventListener('pageshow', e => { if (e.persisted) idle(); });
 } else {
