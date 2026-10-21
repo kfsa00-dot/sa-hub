@@ -19,6 +19,9 @@
 | `icons/apple-touch-icon.png` | iOS 用；**不透明**，否則加到主畫面四角會透出黑邊 |
 | `qr.png` | 推廣用 QR code（含網址文字，可直接列印） |
 | `tools/make_icons.py`、`tools/make_qr.py` | 重新產生上面那些圖的腳本，網站本身不會用到 |
+| `tools/check.py` | **部署前檢查**：SITES 格式、檔案與圖示、VERSION 規則，並跑 SW 測試 |
+| `tools/test_sw.js` | Service Worker 自動化測試（由 check.py 呼叫，用 macOS 內建 jsc 執行） |
+| `xt/`、`sport/` | 其他系統的主畫面捷徑，**不屬於入口**，各有自己的 Service Worker |
 
 ---
 
@@ -53,6 +56,14 @@ const SITES = [
 > 原因：Service Worker 雖然是 network-first，正常上網時會自動抓到新的 `index.html`，但手機只要有**一次**抓不到網路（校內 Wi-Fi 不穩、系統把請求掐掉），就會回退到快取裡那份**建立 VERSION 當下**的舊 HTML，而且在下次成功連線前會一直卡著舊清單。改 VERSION 會讓舊快取在 activate 時被整個刪掉，是唯一能強制汰換的方式。
 >
 > （2026-09-09 就踩過：新增了兩個系統但沒動 VERSION，手機上那兩筆看起來像「不見了」。）
+
+**部署前跑一次檢查**（只用 Python 標準庫，不用裝東西）：
+
+```bash
+python3 tools/check.py
+```
+
+它會檢查 SITES 的必填欄位、id 是否重複、網址是否 https、圖示與快取清單的檔案是否都在，**也會抓出「改了 `index.html` 卻沒加 VERSION」**，最後跑 Service Worker 測試。顯示「全部通過，可以部署。」再上傳。
 
 ---
 
@@ -151,7 +162,12 @@ python3 tools/make_icons.py
 那幾個 Google Apps Script 系統只開放校內帳號。請在 Google 頁面右上角的頭像切換到 `@kfps.tp.edu.tw` 帳號，再重新整理。手機建議把校內帳號設為 Google 的預設帳號。
 
 **星號（常用）會同步到別支手機嗎？**
-不會。常用只存在該支手機的瀏覽器裡（localStorage），清除瀏覽資料會消失。
+不會。常用只存在該支手機的瀏覽器裡（localStorage），清除瀏覽資料會消失。同一支手機開了兩個分頁時，兩邊會自動同步。
+
+**repo 裡的 `xt/`、`sport/` 會不會被入口的 Service Worker 影響？**
+不會。入口的 `sw.js` 只處理入口自己的檔案（首頁、`manifest.webmanifest`、`qr.png`、`icons/` 底下的圖），其餘路徑一律不攔截，交給各子系統自己的 Service Worker 或瀏覽器處理；清舊快取時也只刪 `sa-hub-` 開頭的。之後若在根目錄新增入口要用的檔案，記得加進 `sw.js` 的 `isPortalPath()`，否則它不會被快取（不影響連線時的使用）。
+
+（2026-10 修正過：先前入口的 SW 會攔截整個 `/sa-hub/` 底下的請求，導致打 `…/sa-hub/sport`、`…/sa-hub/xt`（少結尾斜線）時出現錯誤頁，離線時還可能把入口首頁當成子系統的頁面回傳。）
 
 ---
 
