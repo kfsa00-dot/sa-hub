@@ -1,0 +1,3147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>校園事件流程檢核系統</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- 固定版本 + SRI 完整性驗證，避免 CDN 更新或遭竄改導致系統異常 -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js" integrity="sha384-x/ilTFv/u/eu6YSmkFDZl5V5Mm/pkxxcVv2cVJOrr1J0rvILhMvRBCy6yA75wYBj" crossorigin="anonymous"></script>
+<style>
+  /* ======= design tokens ======= */
+  :root {
+    --bg-1: #1a2a3a;
+    --bg-2: #243b55;
+    --sidebar-bg: #1a2535;
+    --surface: #ffffff;
+    --surface-2: #f6f8fa;
+    --surface-3: #eceff3;
+    --line: #e3e8ee;
+    --ink: #1f2d3d;
+    --ink-2: #4a5b6c;        /* secondary text (≥ 4.5:1 on white) */
+    --ink-3: #66788a;        /* tertiary text (≥ 4.5:1 on white) */
+    --brand: #2e86de;
+    --brand-2: #1f6fbf;
+
+    --c-overdue: #c0392b;
+    --c-soon: #e67e22;
+    --c-soon-ink: #a04000;
+    --c-todo: #7f8c8d;
+    --c-done: #27ae60;
+    --c-done-ink: #1e7a46;
+
+    --tint-overdue: #fdecea;
+    --tint-soon: #fef3e6;
+    --tint-todo: #eef1f4;
+    --tint-done: #e7f6ee;
+
+    --radius-lg: 16px;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06), 0 2px 8px rgba(16, 24, 40, 0.06);
+    --shadow-2: 0 2px 4px rgba(16, 24, 40, 0.08), 0 10px 28px rgba(16, 24, 40, 0.16);
+    --focus: 0 0 0 3px rgba(46, 134, 222, 0.45);
+    --sidebar-w: 220px;
+    --sidebar-w-collapsed: 48px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+    background: linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 100%) fixed;
+    background-color: var(--bg-1);
+    min-height: 100vh;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  #root { min-height: 100vh; }
+  button, input, select, textarea { font-family: inherit; }
+  :focus { outline: none; }
+  :focus-visible { outline: none; box-shadow: var(--focus); }
+  .visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* ======= boot / loading ======= */
+  .boot {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: rgba(255,255,255,0.8);
+    font-size: 15px;
+    text-align: center;
+    padding: 24px;
+  }
+  .boot-spinner {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.18);
+    border-top-color: #fff;
+    animation: spin 0.9s linear infinite;
+  }
+  .boot-error { color: #ffd6d1; max-width: 420px; line-height: 1.7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .app-container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 32px 96px;
+  }
+
+  /* ======= header ======= */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    color: #fff;
+    margin-bottom: 24px;
+    gap: 14px 16px;
+  }
+  .app-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: clamp(20px, 2.4vw, 26px);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    min-width: 0;
+  }
+  .app-title .logo {
+    font-size: 30px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
+    width: 54px; height: 54px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .app-subtitle {
+    color: rgba(255,255,255,0.62);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    border-radius: 10px;
+    transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    white-space: nowrap;
+    line-height: 1.2;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    color: #fff;
+    padding: 11px 20px;
+    box-shadow: 0 4px 14px rgba(46, 134, 222, 0.35);
+  }
+  .btn-primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(46, 134, 222, 0.5); }
+  .btn-secondary {
+    background: var(--surface-3);
+    color: var(--ink);
+    padding: 10px 18px;
+  }
+  .btn-secondary:hover:not(:disabled) { background: #dde3e9; }
+  .btn-ghost {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    padding: 10px 16px;
+    border: 1px solid rgba(255,255,255,0.14);
+  }
+  .btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.18); }
+  .btn-danger {
+    background: var(--c-overdue);
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  .btn-danger:hover:not(:disabled) { background: #a93226; }
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    border-radius: 8px;
+  }
+
+  /* ======= global notices ======= */
+  .storage-warning {
+    background: #fff4e5;
+    color: #7a3e00;
+    border-left: 5px solid var(--c-soon);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+  .toast-wrap {
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%);
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+  }
+  .toast {
+    background: #22313f;
+    color: #fff;
+    padding: 11px 18px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    box-shadow: var(--shadow-2);
+    animation: toast-in 0.2s ease;
+    pointer-events: auto;
+  }
+  .toast.error { background: #a93226; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ======= empty state ======= */
+  .empty-state {
+    background: rgba(255,255,255,0.96);
+    border-radius: var(--radius-lg);
+    padding: 72px 32px;
+    text-align: center;
+    color: var(--ink-2);
+    box-shadow: var(--shadow-1);
+  }
+  .empty-state .icon { font-size: 56px; margin-bottom: 12px; opacity: 0.6; }
+  .empty-state .text { font-size: 16px; }
+  .empty-state .sub { font-size: 13px; color: var(--ink-3); margin-top: 6px; }
+
+  /* ======= incident card list ======= */
+  .list-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: -8px 0 16px;
+    flex-wrap: wrap;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
+    gap: 18px;
+  }
+  .incident-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 20px 20px 18px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-left: 6px solid var(--c-todo);
+    box-shadow: var(--shadow-1);
+    position: relative;
+    text-align: left;
+  }
+  .incident-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+  .incident-card:focus-visible { box-shadow: var(--focus), var(--shadow-2); }
+  .incident-card.status-overdue { border-left-color: var(--c-overdue); }
+  .incident-card.status-soon { border-left-color: var(--c-soon); }
+  .incident-card.status-done { border-left-color: var(--c-done); }
+  .incident-card.status-normal { border-left-color: var(--c-todo); }
+  .incident-card.is-closed { background: #fbfcfd; }
+
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; padding-right: 36px; }
+  .type-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.5;
+  }
+  .incident-card .case-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 12px 0 4px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .incident-card .meta {
+    color: var(--ink-3);
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .progress-wrap {
+    background: var(--surface-3);
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  .progress-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2ecc71, var(--c-done));
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    font-size: 12px;
+    color: var(--ink-3);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .urgent-step {
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13px;
+    border-left: 3px solid var(--c-todo);
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .urgent-step .u-head { font-weight: 700; margin-bottom: 2px; }
+  .urgent-step .u-days { font-size: 12px; margin-top: 2px; font-weight: 500; }
+  .urgent-step.is-overdue { background: var(--tint-overdue); border-left-color: var(--c-overdue); color: #8e2a1f; }
+  .urgent-step.is-soon { background: var(--tint-soon); border-left-color: var(--c-soon); color: var(--c-soon-ink); }
+  .urgent-step.is-done { background: var(--tint-done); border-left-color: var(--c-done); color: var(--c-done-ink); }
+
+  .card-delete {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(192, 57, 43, 0.08);
+    color: var(--c-overdue);
+    border: none;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .card-delete:hover { background: var(--c-overdue); color: #fff; }
+
+  /* ======= new incident screen ======= */
+  .panel {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    box-shadow: var(--shadow-2);
+  }
+  .panel h2 {
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel h2 .step-badge {
+    background: var(--ink);
+    color: #fff;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .panel .step-hint {
+    color: var(--ink-3);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .type-btn {
+    border: 2px solid var(--line);
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 20px 14px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    text-align: center;
+    position: relative;
+  }
+  .type-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-1); }
+  .type-btn .ic { font-size: 36px; margin-bottom: 8px; display: block; }
+  .type-btn .nm { font-weight: 700; color: var(--ink); font-size: 15px; }
+  .type-btn .desc { font-size: 11.5px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+  .type-btn.selected {
+    border-width: 2px;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-2);
+  }
+  .type-btn.selected::after {
+    content: "✓";
+    position: absolute;
+    top: 8px; right: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--type-color, var(--brand));
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0 16px;
+  }
+  .form-row { margin-bottom: 16px; }
+  .form-row label {
+    display: block;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+  .form-row .req { color: var(--c-overdue); margin-left: 2px; }
+  .form-row input[type="text"],
+  .form-row input[type="date"] {
+    width: 100%;
+    padding: 11px 14px;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    font-size: 15px;
+    color: var(--ink);
+    background: #fff;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .form-row input:focus { border-color: var(--brand); box-shadow: var(--focus); }
+  .form-row input[aria-invalid="true"] { border-color: var(--c-overdue); }
+  .field-help { font-size: 12px; color: var(--ink-3); margin-top: 5px; }
+  .field-error { font-size: 12.5px; color: var(--c-overdue); margin-top: 5px; font-weight: 500; }
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  /* ======= process check screen ======= */
+  .check-header {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-1);
+  }
+  .check-header .tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .check-header h2 { margin: 8px 0 4px; color: var(--ink); font-size: 22px; word-break: break-word; }
+  .check-header .meta { color: var(--ink-3); font-size: 13px; }
+
+  .summary-bar {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-1);
+  }
+  .summary-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .summary-title .pct { font-size: 22px; font-variant-numeric: tabular-nums; }
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .summary-pill {
+    border: 2px solid transparent;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .summary-pill:hover { transform: translateY(-1px); }
+  .summary-pill .num { font-weight: 700; font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .summary-pill.overdue { background: var(--tint-overdue); color: var(--c-overdue); }
+  .summary-pill.soon { background: var(--tint-soon); color: var(--c-soon-ink); }
+  .summary-pill.todo { background: var(--tint-todo); color: var(--ink-2); }
+  .summary-pill.done { background: var(--tint-done); color: var(--c-done-ink); }
+  .summary-pill[aria-pressed="true"] { border-color: currentColor; }
+
+  .banner {
+    border-radius: var(--radius);
+    padding: 13px 18px;
+    margin-bottom: 14px;
+    font-weight: 600;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .banner.overdue { background: var(--tint-overdue); color: #8e2a1f; border-left: 5px solid var(--c-overdue); }
+  .banner.soon { background: var(--tint-soon); color: var(--c-soon-ink); border-left: 5px solid var(--c-soon); }
+  .banner.allDone { background: var(--tint-done); color: var(--c-done-ink); border-left: 5px solid var(--c-done); }
+
+  .filter-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    background: rgba(255,255,255,0.08);
+    padding: 5px;
+    border-radius: 12px;
+    width: fit-content;
+    max-width: 100%;
+  }
+  .filter-tabs button {
+    background: transparent;
+    color: rgba(255,255,255,0.85);
+    border: none;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .filter-tabs button:hover { background: rgba(255,255,255,0.14); }
+  .filter-tabs button.active {
+    background: #fff;
+    color: var(--ink);
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  .step-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow-1);
+    border-left: 5px solid var(--c-todo);
+    transition: opacity 0.2s, box-shadow 0.2s;
+  }
+  .step-card:hover { box-shadow: var(--shadow-2); }
+  .step-card.s-overdue { border-left-color: var(--c-overdue); }
+  .step-card.s-soon { border-left-color: var(--c-soon); }
+  .step-card.s-done { border-left-color: var(--c-done); opacity: 0.75; }
+  .step-card.s-done .step-title { text-decoration: line-through; color: var(--ink-2); }
+
+  .step-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .step-check {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 2px solid #b6c0ca;
+    flex-shrink: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    font-weight: 700;
+    font-size: 16px;
+    background: #fff;
+    transition: background 0.15s, border-color 0.15s;
+    margin-top: 1px;
+    padding: 0;
+  }
+  .step-check.checked {
+    background: var(--c-done);
+    border-color: var(--c-done);
+    color: #fff;
+  }
+  .step-check:hover:not(:disabled) { border-color: var(--c-done); }
+  .step-check:disabled { cursor: not-allowed; }
+
+  .step-body { flex: 1; min-width: 0; }
+  .step-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .step-num {
+    background: #34495e;
+    color: #fff;
+    min-width: 26px; height: 26px;
+    padding: 0 6px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 12.5px;
+    flex-shrink: 0;
+  }
+  .step-title {
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .req-tag, .status-tag, .assignee-tag {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  .req-tag { background: var(--tint-overdue); color: var(--c-overdue); }
+  .status-tag.s-overdue { background: var(--tint-overdue); color: var(--c-overdue); }
+  .status-tag.s-soon { background: var(--tint-soon); color: var(--c-soon-ink); }
+  .status-tag.s-todo { background: var(--tint-todo); color: var(--ink-2); }
+  .status-tag.s-done { background: var(--tint-done); color: var(--c-done-ink); }
+
+  .step-deadline {
+    color: var(--ink-3);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+  .step-deadline strong { color: var(--ink); }
+  .step-deadline .days { margin-left: 8px; font-weight: 600; }
+  .step-deadline .days.overdue { color: var(--c-overdue); }
+  .step-deadline .days.soon { color: var(--c-soon-ink); }
+  .step-deadline .days.normal { color: var(--ink-3); }
+
+  .step-law {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+  }
+  .composition-note, .cross-school-note {
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12.5px;
+    line-height: 1.65;
+  }
+  .composition-note { background: #fdf2e9; color: #6e2c00; border-left: 3px solid #d35400; }
+  .cross-school-note { background: #ebf5fb; color: #1b4f72; border-left: 3px solid #2874a6; }
+
+  .note-section { margin-top: 10px; }
+  .note-toggle {
+    background: none;
+    border: none;
+    color: var(--brand-2);
+    cursor: pointer;
+    font-size: 12.5px;
+    padding: 4px 2px;
+    border-radius: 4px;
+  }
+  .note-toggle:hover { text-decoration: underline; }
+  .note-edit { margin-top: 6px; }
+  .note-edit textarea {
+    width: 100%;
+    min-height: 76px;
+    padding: 10px 12px;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    resize: vertical;
+    color: var(--ink);
+  }
+  .note-edit textarea:focus { border-color: var(--brand); box-shadow: var(--focus); }
+  .note-edit .note-actions { margin-top: 6px; display: flex; gap: 8px; align-items: center; }
+  .note-edit .note-count { margin-left: auto; font-size: 11.5px; color: var(--ink-3); }
+  .note-display {
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: #fffbea;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: #5c5220;
+    border-left: 3px solid #f1c40f;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ======= floating action button ======= */
+  .fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 100;
+  }
+  .fab-main {
+    background: linear-gradient(135deg, #2c3e50, #3d566e);
+    color: #fff;
+    height: 52px;
+    padding: 0 20px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    transition: transform 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fab-main:hover { transform: translateY(-2px); }
+  .fab-menu {
+    position: absolute;
+    bottom: 62px;
+    right: 0;
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 6px;
+    box-shadow: var(--shadow-2);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 170px;
+  }
+  .fab-menu button {
+    background: none;
+    border: none;
+    padding: 10px 14px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .fab-menu button:hover { background: var(--surface-3); }
+
+  /* ======= modal ======= */
+  .modal-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 18, 28, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 16px;
+    animation: fade-in 0.15s ease;
+  }
+  .modal {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 26px;
+    max-width: 440px;
+    width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+  }
+  .modal h3 { margin: 0 0 10px; color: var(--ink); font-size: 18px; }
+  .modal p { color: var(--ink-2); line-height: 1.65; margin: 0 0 20px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+  .modal-actions .btn { padding: 10px 18px; }
+  .missing-list {
+    background: #fdf2e9;
+    border-left: 4px solid var(--c-soon);
+    padding: 12px 12px 12px 30px;
+    border-radius: var(--radius-sm);
+    max-height: 220px;
+    overflow: auto;
+    margin: 0 0 18px;
+    color: #6e2c00;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ======= layout with sidebar ======= */
+  .app-layout { position: relative; }
+  .app-main {
+    margin-left: var(--sidebar-w);
+    transition: margin-left 0.25s ease;
+    min-height: 100vh;
+  }
+  .app-main.sidebar-collapsed { margin-left: var(--sidebar-w-collapsed); }
+
+  .sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s ease;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  .sidebar.collapsed { width: var(--sidebar-w-collapsed); }
+  .sidebar-backdrop { display: none; }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    min-height: 57px;
+  }
+  .sidebar.collapsed .sidebar-header { padding: 14px 6px; justify-content: center; }
+  .sidebar-header-title {
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .sidebar-toggle {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border: none;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .sidebar-toggle:hover { background: rgba(255,255,255,0.2); }
+
+  .sidebar-body {
+    flex: 1;
+    padding: 10px 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .sidebar.collapsed .sidebar-body { padding: 10px 4px; }
+  .sidebar-body::-webkit-scrollbar { width: 5px; }
+  .sidebar-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  .sidebar-reset {
+    background: none;
+    border: 1px dashed rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.7);
+    padding: 6px 8px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 11.5px;
+    width: 100%;
+    margin-bottom: 10px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .sidebar-reset:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+  .sidebar-section-title {
+    color: rgba(255,255,255,0.55);
+    font-size: 10.5px;
+    letter-spacing: 1.2px;
+    padding: 8px 6px 5px;
+    font-weight: 700;
+  }
+  .sidebar-empty {
+    color: rgba(255,255,255,0.5);
+    font-size: 12px;
+    text-align: center;
+    padding: 24px 8px;
+    line-height: 1.7;
+  }
+
+  .sb-item { position: relative; margin-bottom: 7px; }
+  .sb-case-card {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: rgba(255,255,255,0.06);
+    border-left: 4px solid var(--c-todo);
+    border-radius: var(--radius-sm);
+    padding: 9px 10px;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+    color: inherit;
+  }
+  .sb-case-card:hover { background: rgba(255,255,255,0.12); }
+  .sb-case-card.active {
+    background: rgba(255,255,255,0.97);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  }
+  .sb-case-card.active .sb-name { color: var(--ink); }
+  .sb-case-card.active .sb-meta { color: var(--ink-2); }
+  .sb-case-card.active .sb-progress { color: var(--ink-3); }
+  .sb-case-card.overdue { background: rgba(192,57,43,0.22); }
+  .sb-case-card.soon { background: rgba(230,126,34,0.22); }
+  .sb-case-card.overdue.active, .sb-case-card.soon.active { background: rgba(255,255,255,0.97); }
+  .sb-case-card.closed { opacity: 0.6; background: rgba(255,255,255,0.03); }
+  .sb-case-card.closed.active { opacity: 1; background: rgba(255,255,255,0.97); }
+
+  .sb-row1 { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; padding-right: 18px; }
+  .sb-icon { font-size: 14px; flex-shrink: 0; }
+  .sb-name {
+    flex: 1;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-meta {
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sb-progress {
+    color: rgba(255,255,255,0.6);
+    font-size: 11px;
+    margin-top: 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .sb-days { font-weight: 700; }
+  .sb-days.overdue { color: #ff8a80; }
+  .sb-days.soon { color: #ffc078; }
+  .sb-days.normal { color: rgba(255,255,255,0.7); }
+  .sb-case-card.active .sb-days.overdue { color: var(--c-overdue); }
+  .sb-case-card.active .sb-days.soon { color: var(--c-soon-ink); }
+  .sb-case-card.active .sb-days.normal { color: var(--ink-3); }
+
+  .sb-order-btns {
+    position: absolute;
+    right: 4px;
+    top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .sb-item:hover .sb-order-btns,
+  .sb-order-btns:focus-within { opacity: 1; }
+  .sb-order-btns button {
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    border: none;
+    width: 20px; height: 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 9px;
+    padding: 0;
+    line-height: 1;
+  }
+  .sb-order-btns button:hover:not(:disabled) { background: rgba(0,0,0,0.8); }
+  .sb-order-btns button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .sb-icon-card {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: rgba(255,255,255,0.06);
+    border-left: 3px solid var(--c-todo);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    margin: 0 auto 6px;
+    padding: 0;
+    transition: background 0.15s, transform 0.15s;
+  }
+  .sb-icon-card:hover { background: rgba(255,255,255,0.16); transform: scale(1.05); }
+  .sb-icon-card.active { background: rgba(255,255,255,0.95); box-shadow: 0 3px 10px rgba(0,0,0,0.35); }
+  .sb-icon-card.overdue { background: rgba(192,57,43,0.3); }
+  .sb-icon-card.soon { background: rgba(230,126,34,0.3); }
+  .sb-icon-card.closed { opacity: 0.5; }
+  .sb-icon-card.closed.active { opacity: 1; }
+
+  .sidebar-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.1);
+    margin: 10px 4px;
+  }
+  .sidebar-footer {
+    padding: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .sidebar.collapsed .sidebar-footer { padding: 10px 6px; }
+  .sidebar-new-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    color: #fff;
+    border: none;
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: box-shadow 0.15s;
+  }
+  .sidebar-new-btn:hover { box-shadow: 0 4px 14px rgba(46,134,222,0.5); }
+  .sidebar.collapsed .sidebar-new-btn-text { display: none; }
+  .sidebar.collapsed .sidebar-new-btn { padding: 8px 0; font-size: 18px; }
+
+  /* ======= activity log ======= */
+  .activity-log-section {
+    background: var(--surface);
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+  }
+  .activity-log-header {
+    width: 100%;
+    border: none;
+    padding: 14px 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface-2);
+    transition: background 0.15s;
+    text-align: left;
+  }
+  .activity-log-header:hover { background: var(--surface-3); }
+  .activity-log-title {
+    font-weight: 700;
+    color: var(--ink);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .activity-log-toggle { color: var(--ink-3); font-size: 13px; }
+  .log-badge {
+    background: #34495e;
+    color: #fff;
+    border-radius: 10px;
+    padding: 1px 9px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .activity-log-body { padding: 14px 18px 18px; }
+  .log-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .log-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .log-input-row input:focus { border-color: var(--brand); box-shadow: var(--focus); }
+
+  .log-timeline {
+    position: relative;
+    padding-left: 18px;
+    border-left: 2px solid var(--surface-3);
+    margin: 6px 0 0 4px;
+    list-style: none;
+  }
+  .log-entry {
+    position: relative;
+    padding: 6px 0 6px 4px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .log-entry::before {
+    content: "";
+    position: absolute;
+    left: -24px;
+    top: 12px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #bdc3c7;
+    border: 2px solid #fff;
+  }
+  .log-entry.auto::before { background: var(--c-done); }
+  .log-entry.manual::before { background: var(--brand); }
+  .log-entry .log-time {
+    color: var(--ink-3);
+    font-size: 11.5px;
+    margin-right: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .log-entry .log-content { color: var(--ink); word-break: break-word; }
+  .log-entry .log-del {
+    background: none;
+    border: none;
+    color: var(--c-overdue);
+    cursor: pointer;
+    font-size: 11.5px;
+    margin-left: 8px;
+    padding: 0 2px;
+    border-radius: 4px;
+    opacity: 0.75;
+  }
+  .log-entry .log-del:hover { opacity: 1; text-decoration: underline; }
+  .log-empty { color: var(--ink-3); font-size: 12.5px; padding: 8px 0; }
+
+  /* ======= assignee select ======= */
+  .assignee-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12.5px;
+  }
+  .assignee-row label { color: var(--ink-3); }
+  .assignee-select {
+    padding: 5px 8px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    font-size: 12.5px;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .assignee-select:focus { border-color: var(--brand); box-shadow: var(--focus); }
+  .assignee-tag { background: #dbeaf7; color: #1b5e8f; }
+
+  /* ======= closed / readonly ======= */
+  .closed-badge {
+    background: #d5f5e3;
+    color: var(--c-done-ink);
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1.5;
+  }
+  .readonly-banner {
+    background: #eaf2f8;
+    color: #1b4f72;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    margin-bottom: 14px;
+    border-left: 5px solid #2874a6;
+    line-height: 1.6;
+  }
+  .step-card.readonly .step-check { opacity: 0.55; }
+
+  /* ======= self test ======= */
+  .selftest {
+    background: #fff;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    box-shadow: var(--shadow-1);
+  }
+  .selftest h3 { margin: 0 0 8px; font-size: 15px; }
+  .selftest .pass { color: var(--c-done-ink); }
+  .selftest .fail { color: var(--c-overdue); font-weight: 700; }
+  .selftest ul { margin: 0; padding-left: 18px; }
+
+  /* ======= responsive ======= */
+  @media (max-width: 900px) {
+    .app-container { padding: 22px 20px 96px; }
+    .summary-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 768px) {
+    /* 手機：側邊欄固定為收合寬度，展開時以浮層覆蓋內容 */
+    .app-main, .app-main.sidebar-collapsed { margin-left: var(--sidebar-w-collapsed); }
+    .sidebar:not(.collapsed) { box-shadow: 8px 0 30px rgba(0,0,0,0.45); }
+    .sidebar-backdrop {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 45;
+      border: none;
+      padding: 0;
+    }
+    .app-container { padding: 16px 16px 96px; }
+    .app-title .logo { width: 44px; height: 44px; font-size: 24px; border-radius: 12px; }
+    .app-subtitle { display: none; }
+    .panel { padding: 22px 18px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .check-header { padding: 18px; }
+    .step-card { padding: 14px 14px; }
+    .step-head { gap: 10px; }
+    .fab { right: 16px; bottom: 16px; }
+    .fab-main .fab-label { display: none; }
+    .fab-main { width: 52px; padding: 0; justify-content: center; }
+    .sb-order-btns { opacity: 1; }
+  }
+  @media (hover: none) {
+    .sb-order-btns { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+
+  /* ======= print styles ======= */
+  @media print {
+    @page { margin: 14mm; }
+    html, body { background: #fff !important; color: #000 !important; }
+    .app-header,
+    .filter-tabs,
+    .fab,
+    .card-delete,
+    .note-toggle,
+    .note-edit,
+    .step-check,
+    .btn,
+    .sidebar,
+    .sidebar-backdrop,
+    .toast-wrap,
+    .storage-warning,
+    .activity-log-section,
+    .assignee-row,
+    .log-input-row,
+    .banner,
+    .selftest { display: none !important; }
+    .app-main, .app-main.sidebar-collapsed { margin-left: 0 !important; }
+    .app-container { padding: 0; max-width: 100%; }
+    .step-card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; opacity: 1 !important; margin-bottom: 8px; }
+    .panel, .check-header, .summary-bar, .readonly-banner { box-shadow: none !important; border: 1px solid #ddd !important; }
+    .summary-pill { border: 1px solid #ddd !important; }
+    .print-only { display: block !important; }
+    .step-title::before {
+      content: "□  ";
+      font-family: monospace;
+      font-weight: 700;
+    }
+    .step-card.s-done .step-title::before { content: "✓  "; color: var(--c-done); }
+    .type-tag, .step-num, .status-tag, .req-tag, .closed-badge {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+  .print-only { display: none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="boot" role="status">
+    <div class="boot-spinner" aria-hidden="true"></div>
+    <div>系統載入中…</div>
+  </div>
+</div>
+<script>
+  // 元件庫無法載入（離線、CDN 故障）或程式啟動失敗時，顯示明確錯誤而非空白頁
+  (function () {
+    function showBootError(msg) {
+      if (window.__APP_MOUNTED__) return;
+      document.getElementById("root").innerHTML =
+        '<div class="boot"><div style="font-size:40px">⚠️</div><div class="boot-error">' + msg + '</div></div>';
+    }
+    window.addEventListener("load", function () {
+      if (!window.React || !window.ReactDOM || !window.Babel) {
+        showBootError("無法載入系統元件，請確認網路連線後重新整理頁面。<br>（您的案件資料仍保存在本機瀏覽器中，不會遺失）");
+      }
+    });
+    setTimeout(function () {
+      showBootError("系統啟動逾時，請重新整理頁面。若持續發生，請改用 Chrome / Edge 最新版開啟。");
+    }, 30000);
+  })();
+</script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+/* ==========================================================
+   工具函式：日期 / localStorage / uuid
+========================================================== */
+
+const STORAGE_KEY = "school_incidents";
+const SIDEBAR_COLLAPSED_KEY = "sidebar_collapsed";
+const SIDEBAR_ORDER_KEY = "sidebar_order";
+const NAME_MAX = 50;
+const NOTE_MAX = 2000;
+const LOG_TEXT_MAX = 500;
+const BACKUP_MAX_BYTES = 5 * 1024 * 1024;
+
+function uuid() {
+  if (window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+const isPlainObject = v => v !== null && typeof v === "object" && !Array.isArray(v);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// 讀入資料時補齊欄位、剔除損毀紀錄，避免舊版資料或手動匯入的資料讓畫面崩潰
+function normalizeIncident(raw) {
+  if (!isPlainObject(raw) || typeof raw.id !== "string" || !raw.id) return null;
+  if (typeof raw.incidentDate !== "string" || !DATE_RE.test(raw.incidentDate)) return null;
+  const pickStrings = obj => {
+    const out = {};
+    if (isPlainObject(obj)) {
+      Object.keys(obj).forEach(k => { if (typeof obj[k] === "string") out[k] = obj[k]; });
+    }
+    return out;
+  };
+  const checked = {};
+  if (isPlainObject(raw.checkedSteps)) {
+    Object.keys(raw.checkedSteps).forEach(k => { if (raw.checkedSteps[k] === true) checked[k] = true; });
+  }
+  const log = Array.isArray(raw.activityLog)
+    ? raw.activityLog.filter(e => isPlainObject(e) && typeof e.content === "string" && typeof e.timestamp === "string")
+        .map(e => ({
+          id: typeof e.id === "string" ? e.id : uuid(),
+          timestamp: e.timestamp,
+          content: e.content,
+          type: e.type === "auto" ? "auto" : "manual"
+        }))
+    : [];
+  return {
+    id: raw.id,
+    type: typeof raw.type === "string" ? raw.type : "",
+    name: typeof raw.name === "string" && raw.name.trim() ? raw.name : "（未命名案件）",
+    incidentDate: raw.incidentDate,
+    checkedSteps: checked,
+    notes: pickStrings(raw.notes),
+    assignees: pickStrings(raw.assignees),
+    activityLog: log,
+    status: raw.status === "closed" ? "closed" : "active",
+    closedAt: typeof raw.closedAt === "string" ? raw.closedAt : null,
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : new Date().toISOString()
+  };
+}
+
+function normalizeIncidentList(data) {
+  if (!Array.isArray(data)) return [];
+  const seen = new Set();
+  const out = [];
+  data.forEach(raw => {
+    const inc = normalizeIncident(raw);
+    if (inc && !seen.has(inc.id)) { seen.add(inc.id); out.push(inc); }
+  });
+  return out;
+}
+
+// 回傳 { list, error }：error 為 null 代表成功
+function loadIncidents() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { list: [], error: null };
+    return { list: normalizeIncidentList(JSON.parse(raw)), error: null };
+  } catch (err) {
+    console.error("讀取 localStorage 失敗", err);
+    return { list: [], error: err };
+  }
+}
+// 回傳 true 表示成功；內容未變時不重寫
+function saveIncidents(list) {
+  try {
+    const json = JSON.stringify(list);
+    if (localStorage.getItem(STORAGE_KEY) !== json) localStorage.setItem(STORAGE_KEY, json);
+    return true;
+  } catch (err) {
+    console.error("寫入 localStorage 失敗", err);
+    return false;
+  }
+}
+
+function readSidebarOrder() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SIDEBAR_ORDER_KEY) || "null");
+    return Array.isArray(parsed) && parsed.every(x => typeof x === "string") && parsed.length > 0 ? parsed : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function parseDate(str) {
+  // YYYY-MM-DD → Date (local midnight)；格式錯誤回傳 null
+  if (typeof str !== "string" || !DATE_RE.test(str)) return null;
+  const [y, m, d] = str.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  return date;
+}
+function toDateInputValue(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function fmtDate(d) {
+  if (!d || isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}/${m}/${day}`;
+}
+
+function addCalendarDays(base, days) {
+  const d = new Date(base.getTime());
+  d.setDate(d.getDate() + days);
+  return d;
+}
+function addWorkDays(base, days) {
+  // 排除週六（6）週日（0）
+  const d = new Date(base.getTime());
+  let remaining = days;
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    const w = d.getDay();
+    if (w !== 0 && w !== 6) remaining--;
+  }
+  return d;
+}
+function diffCalendarDays(a, b) {
+  // returns b - a in days, ignoring time
+  const aa = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  const bb = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((bb - aa) / 86400000);
+}
+
+/* ==========================================================
+   事件類型與步驟定義
+========================================================== */
+
+const INCIDENT_TYPES = {
+  bullying_s2s: {
+    name: "生對生校園霸凌",
+    icon: "🚨",
+    color: "#c0392b",
+    desc: "校園霸凌防制準則 113 年版",
+    dayMode: "work",
+    steps: [
+      { id: 1, name: "即時保護措施（分開雙方、座位調整）", days: 0, required: true, law: "準則第38條，調查階段應採取保護措施" },
+      { id: 2, name: "通知雙方家長", days: 0, required: true, law: "準則第15條，未成年學生應通知法定代理人" },
+      { id: 3, name: "校安系統通報（24小時內）", days: 1, required: true, law: "校安通報作業要點，乙級事件24小時內通報" },
+      { id: 4, name: "召開審查小組會議", days: 3, required: true, law: "準則第24條，受理申請後3工作日內召開" },
+      { id: 5, name: "書面通知檢舉人受理與否", days: 20, required: true, law: "準則第25條，接獲檢舉起20工作日內書面通知" },
+      {
+        id: 6, name: "組成處理小組（3或5人，過半數外聘）", days: 5, required: true,
+        law: "準則第27條，審查小組決議受理後5工作日內",
+        composition: "3人或5人；至少過半數自生對生人才庫外聘；偏遠地區至少1/3外聘；防制委員會委員應迴避"
+      },
+      { id: 7, name: "處理小組第一次會議（分工、說明調查程序）", days: 7, required: true, law: "準則第28條，委員互推主持人並進行會前會" },
+      {
+        id: 8, name: "通知當事人所屬學校（如為跨校事件）", days: 7, required: false,
+        law: "準則第38條第3項",
+        crossSchoolNote: "當行為人或被行為人非本校學生，應通知其所屬學校辦理保護措施；對方學校不須派代表加入處理小組"
+      },
+      { id: 9, name: "完成調查或調和報告", days: 60, required: true, law: "準則第35條，得延長2次每次不逾1個月（第一次會議後2個月內完成）" },
+      { id: 10, name: "完成調和報告（走調和路線時）", days: 67, required: false, law: "準則第34條，調和成立後7工作日內" },
+      { id: 11, name: "提防制委員會審議", days: 65, required: true, law: "準則第35條、第43條，調查報告完成後儘速" },
+      { id: 12, name: "作成終局實體處理", days: 80, required: true, law: "準則第44條，防制委員會決議後15工作日" },
+      { id: 13, name: "書面通知雙方當事人（附調和/調查報告）", days: 90, required: true, law: "準則第44條第2項，終局處理後10工作日" },
+      { id: 14, name: "陳情/申訴期間追蹤（行為人30日可申訴；被行為人30日可陳情）", days: 120, required: true, law: "準則第46、49條，通知後30日持續追蹤" },
+      { id: 15, name: "執行輔導措施（行為人懲處+輔導；被行為人心理輔導）", days: 110, required: true, law: "準則第38條，終局處理後持續" },
+      { id: 16, name: "作成終局實體處理後陳報主管機關備查", days: 85, required: true, law: "準則第47條" },
+      { id: 17, name: "結案歸檔", days: 150, required: true, law: "準則第47條，處理情形及會議紀錄報主管機關備查" }
+    ]
+  },
+  bullying_t2s: {
+    name: "師對生霸凌",
+    icon: "👨‍🏫",
+    color: "#1a5276",
+    desc: "教師解聘不續聘停聘或資遣辦法 113 年版",
+    dayMode: "work",
+    steps: [
+      { id: 1, name: "即時安置被害學生（調整班級、座位，保護措施）", days: 0, required: true, law: "解聘辦法第8條，應即蒐集保全證據及採取保護措施" },
+      { id: 2, name: "通知被害學生家長", days: 0, required: true, law: "未成年應通知法定代理人" },
+      { id: 3, name: "陳報校長", days: 0, required: true, law: "校內通報程序" },
+      { id: 4, name: "校安系統通報（24小時內）", days: 1, required: true, law: "校安通報作業要點" },
+      { id: 5, name: "通知教育局", days: 3, required: true, law: "主管機關監督機制" },
+      {
+        id: 6, name: "受理審查：校長召開會議（外聘人才庫委員+教師代表+家長代表共4人，無記名投票）",
+        days: 7, required: true,
+        law: "解聘辦法第9條，校長邀集4人無記名投票，校長不投票",
+        composition: "外聘人才庫專業人員1人+教師代表1人+家長代表1人+1人=共4人；無記名投票；校長主持但不投票"
+      },
+      { id: 7, name: "書面通知當事人受理與否", days: 20, required: true, law: "解聘辦法第9條" },
+      {
+        id: 8, name: "組成調查小組（全部外聘，主管機關推薦名單）", days: 25, required: true,
+        law: "解聘辦法第16條，全部外聘，由主管機關推薦3至5倍人數供學校挑選",
+        composition: "全部外聘；人數3至5人；主管機關提供3至5倍人數名單供選；校事會議委員不得擔任調查小組委員"
+      },
+      { id: 9, name: "調查小組進行調查（訪談、蒐證，應全程錄音錄影）", days: 40, required: true, law: "解聘辦法第19條，訪談應全程錄音錄影" },
+      { id: 10, name: "完成調查報告，提校事會議審議", days: 60, required: true, law: "解聘辦法第22條，受理後2個月內完成" },
+      { id: 11, name: "校事會議審議作成決議", days: 70, required: true, law: "解聘辦法第24條" },
+      { id: 12, name: "報主管機關（教育局）審查", days: 75, required: true, law: "解聘辦法第52條，解聘/不續聘/終局停聘須送審議委員會" },
+      { id: 13, name: "書面通知當事人結果及救濟途徑", days: 85, required: true, law: "解聘辦法相關通知規定，終局處理後10工作日" },
+      { id: 14, name: "執行懲處（送考績會或依解聘辦法懲處）", days: 90, required: true, law: "解聘辦法第24條，決議後15工作日" },
+      { id: 15, name: "被害學生輔導措施（心理諮商等）", days: 95, required: true, law: "解聘辦法第24條，應提供心理諮商與輔導" },
+      { id: 16, name: "追蹤被害學生輔導成效", days: 120, required: true, law: "友善校園精神" },
+      { id: 17, name: "結案歸檔陳報", days: 150, required: true, law: "解聘辦法第47條，報主管機關備查" }
+    ]
+  },
+  gender: {
+    name: "性別平等教育事件",
+    icon: "⚖️",
+    color: "#7d3c98",
+    desc: "性別平等教育法",
+    dayMode: "calendar",
+    steps: [
+      { id: 1, name: "法定通報（性平法第22條，知悉後24小時內）", days: 0, required: true, law: "性平法第22條，知悉後至遲不得超過24小時通報" },
+      { id: 2, name: "即時安全措施（調整座位、課表）", days: 0, required: true, law: "校園性別事件防治準則第28條" },
+      { id: 3, name: "分別通知雙方家長（不得透露對方資訊）", days: 0, required: true, law: "性平法第22條，未成年應通知法定代理人" },
+      { id: 4, name: "收件單位3日內交性平會處理", days: 3, required: true, law: "性平法第33條第1項" },
+      { id: 5, name: "書面通知申請人受理與否", days: 20, required: true, law: "性平法第32條，接獲申請後20日內書面通知" },
+      {
+        id: 6, name: "性平會組成調查小組", days: 25, required: true,
+        law: "性平法第33條",
+        composition: "女性委員≥1/2；具調查專業素養之專家學者≥1/3（學校）；行為人為校長/教師/職員時全部外聘",
+        crossSchoolNote: "當事人分屬不同學校時，調查小組應有被害人現所屬學校之代表（除非被害人要求且性平會認定無必要）"
+      },
+      { id: 7, name: "調查小組進行調查（分別訪談，應避免重複詢問）", days: 40, required: true, law: "性平法第33條，應避免重複詢問" },
+      { id: 8, name: "完成調查報告（可延長2次，每次不逾1個月）", days: 60, required: true, law: "性平法第36條，2個月內完成，可延長2次" },
+      { id: 9, name: "性平會提出調查報告及處理建議", days: 65, required: true, law: "性平法第36條第2項" },
+      { id: 10, name: "學校/主管機關議處", days: 120, required: true, law: "性平法第36條第3項，接獲調查報告後2個月內議處" },
+      { id: 11, name: "書面通知當事人結果（附調查報告）", days: 125, required: true, law: "性平法第36條第3項" },
+      { id: 12, name: "告知申復途徑（收到通知次日起30日內可申復）", days: 155, required: true, law: "性平法第37條" },
+      { id: 13, name: "執行懲處與輔導措施", days: 130, required: true, law: "性平法第25條" },
+      { id: 14, name: "輔導成效追蹤", days: 180, required: true, law: "性平法第26條" },
+      { id: 15, name: "結案歸檔", days: 210, required: true, law: "性平法相關規定" }
+    ]
+  },
+  dropout: {
+    name: "中輟事件",
+    icon: "📤",
+    color: "#d35400",
+    desc: "臺北市國民中小學中輟通報及復學輔導要點",
+    dayMode: "calendar",
+    steps: [
+      { id: 1, name: "確認中輟（未請假連續3日以上未到校）", days: 3, required: true, law: "中輟生通報辦法第2條，連續3日以上" },
+      { id: 2, name: "聯繫家長確認原因", days: 3, required: true, law: "學校基本處理程序" },
+      { id: 3, name: "即時上網通報教育部中輟生通報網（www.mlss.edu.tw）", days: 3, required: true, law: "臺北市實施要點第5條，即時上網通報" },
+      { id: 4, name: "書面函報中心學校、區公所強迫入學委員會、社會局", days: 8, required: true, law: "臺北市實施要點第5條，5日內書面函報" },
+      { id: 5, name: "建立中輟生個人檔案（填妥臺北市中輟生個人檔案表）", days: 8, required: true, law: "臺北市實施要點，建置個人檔案卷宗" },
+      { id: 6, name: "第一次追蹤聯繫（電話、家訪等多元方式）", days: 10, required: true, law: "臺北市實施要點，建立追蹤紀錄" },
+      { id: 7, name: "定期追蹤聯繫（每2週至少1次）", days: 17, required: true, law: "臺北市實施要點，平均2週1次多元方式聯繫" },
+      { id: 8, name: "視需要轉介社會局/警察局/少年輔導委員會", days: 21, required: false, law: "臺北市實施要點第8條，轉介相關單位" },
+      { id: 9, name: "持續追蹤（每2週至少1次，重複提醒）", days: 31, required: true, law: "臺北市實施要點" },
+      { id: 10, name: "持續追蹤（每2週至少1次）", days: 45, required: true, law: "臺北市實施要點" },
+      { id: 11, name: "召開鑑定復學輔導前置會議（有復學意願時）", days: 50, required: true, law: "臺北市實施要點第9條" },
+      { id: 12, name: "召開鑑定復學輔導就讀小組會議", days: 57, required: true, law: "臺北市實施要點第9條，前置會議後5工作天內召開" },
+      { id: 13, name: "即時上網通報復學", days: 60, required: true, law: "臺北市實施要點第7條，即時通報復學" },
+      { id: 14, name: "書面通知中心學校、區公所、社會局復學", days: 63, required: true, law: "臺北市實施要點第7條，復學後3日" },
+      { id: 15, name: "復學後持續輔導追蹤（至少每月1次，持續3個月）", days: 90, required: true, law: "臺北市實施要點，輔導追蹤" },
+      { id: 16, name: "結案處理（復學穩定3個月以上）", days: 150, required: true, law: "臺北市實施要點，穩定就學後結案" }
+    ]
+  },
+  food_poison: {
+    name: "食物中毒事件",
+    icon: "🍱",
+    color: "#b7770d",
+    desc: "校安通報作業要點＋臺北市食品中毒危機處理規定",
+    dayMode: "mixed", // 前8步以小時計
+    steps: [
+      { id: 1, name: "緊急送醫、啟動危機處理小組", hours: 0, required: true, law: "緊急處置，生命安全優先" },
+      { id: 2, name: "通知家長（電話立即聯繫）", hours: 0, required: true, law: "家長知情權" },
+      { id: 3, name: "電話通報教育局、衛生局、教育部", hours: 0.25, required: true, law: "臺北市食品中毒危機處理規定，15分鐘內電話通報" },
+      { id: 4, name: "停止供應可疑食品、保全現場", hours: 0, required: true, law: "食品安全衛生管理法，立即停止供應" },
+      { id: 5, name: "封存可疑食物留樣備驗（至少300克以上）", hours: 0, required: true, law: "食安法，保留食物檢體供衛生局檢驗" },
+      { id: 6, name: "完成校安系統通報", hours: 2, required: true, law: "臺北市規定，2小時完成校安通報" },
+      { id: 7, name: "書面通報教育局", hours: 12, required: true, law: "臺北市規定，12小時內書面通報" },
+      { id: 8, name: "法定校安通報完成（乙級事件）", hours: 24, required: true, law: "校安通報作業要點，食品中毒乙級事件24小時內通報" },
+      { id: 9, name: "提供就醫學生名冊及症狀資料給衛生局", days: 1, required: true, law: "配合衛生局流行病學調查" },
+      { id: 10, name: "配合衛生局進行流行病學調查", days: 1, required: true, law: "食品安全衛生管理法，配合主管機關調查" },
+      { id: 11, name: "協助家長申辦學生平安保險理賠", days: 3, required: true, law: "學平險相關規定" },
+      { id: 12, name: "完成事件調查報告（食材來源、可能原因）", days: 7, required: true, law: "學校內部行政程序" },
+      { id: 13, name: "環境與流程改善措施（廚房、廠商、SOP）", days: 14, required: true, law: "食安法，後續管理改善" },
+      { id: 14, name: "追蹤受影響學生健康恢復狀況", days: 21, required: true, law: "學校照護義務" },
+      { id: 15, name: "結案報告（陳報主管機關）", days: 30, required: true, law: "行政程序，結案陳報" }
+    ]
+  }
+};
+
+/* ==========================================================
+   計算每步驟的截止日 / 狀態
+========================================================== */
+
+function getStepDeadline(typeConf, step, incidentDateStr) {
+  const base = parseDate(incidentDateStr);
+  if (!base) return null;
+
+  // 食物中毒前 8 步（hours 屬性）→ 用小時表示，截止日 = 事件當天加上對應小時
+  if (typeof step.hours !== "undefined") {
+    const d = new Date(base.getTime());
+    d.setMinutes(d.getMinutes() + step.hours * 60);
+    return { date: d, isHourBased: true, hours: step.hours };
+  }
+
+  if (typeConf.dayMode === "work") {
+    return { date: addWorkDays(base, step.days), isHourBased: false };
+  }
+  // calendar 或 mixed 後段
+  return { date: addCalendarDays(base, step.days), isHourBased: false };
+}
+
+function getStepStatus(typeConf, step, incident, today) {
+  const checked = !!(incident.checkedSteps && incident.checkedSteps[step.id]);
+  if (checked) return { key: "done", label: "已完成" };
+  // 已結案案件不再計算逾期，未勾選者標示為「未完成」
+  if (incident.status === "closed") return { key: "todo", label: "未完成" };
+
+  const ddl = getStepDeadline(typeConf, step, incident.incidentDate);
+  if (!ddl) return { key: "todo", label: "待辦" };
+
+  const diff = diffCalendarDays(today, ddl.date);
+  if (diff < 0) return { key: "overdue", label: "逾期", days: diff };
+  if (diff <= 3) return { key: "soon", label: "即將到期", days: diff };
+  return { key: "todo", label: "待辦", days: diff };
+}
+
+function formatDeadline(typeConf, step, incidentDateStr) {
+  const ddl = getStepDeadline(typeConf, step, incidentDateStr);
+  if (!ddl) return "—";
+  if (ddl.isHourBased) {
+    if (step.hours === 0) return "立即（事件當下）";
+    if (step.hours < 1) return `${step.hours * 60} 分鐘內`;
+    return `${step.hours} 小時內（${fmtDate(ddl.date)}）`;
+  }
+  return fmtDate(ddl.date);
+}
+
+/* ==========================================================
+   側邊欄 / 日誌 / 排序 輔助
+========================================================== */
+
+function truncate(s, n) {
+  if (!s) return "";
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+function formatLogTime(iso) {
+  try {
+    const d = new Date(iso);
+    const fmt = new Intl.DateTimeFormat("zh-Hant", {
+      timeZone: "Asia/Taipei",
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false
+    });
+    return fmt.format(d).replace(/-/g, "/");
+  } catch (e) {
+    return iso;
+  }
+}
+
+function appendLog(inc, content, type) {
+  const entry = {
+    id: uuid(),
+    timestamp: new Date().toISOString(),
+    content,
+    type: type || "manual"
+  };
+  return { ...inc, activityLog: [entry, ...(inc.activityLog || [])] };
+}
+
+const STATUS_ORDER = { overdue: 0, soon: 1, todo: 2 };
+
+function getMostUrgent(typeConf, incident, today) {
+  let urgent = null, urgentStatus = null;
+  for (const step of typeConf.steps) {
+    const st = getStepStatus(typeConf, step, incident, today);
+    if (st.key === "done") continue;
+    if (!urgent) { urgent = step; urgentStatus = st; continue; }
+    if (STATUS_ORDER[st.key] < STATUS_ORDER[urgentStatus.key]) {
+      urgent = step; urgentStatus = st;
+    } else if (STATUS_ORDER[st.key] === STATUS_ORDER[urgentStatus.key] && (st.days ?? 0) < (urgentStatus.days ?? 0)) {
+      urgent = step; urgentStatus = st;
+    }
+  }
+  return { urgent, status: urgentStatus };
+}
+
+// 剩餘天數文字與語氣（overdue / soon / normal）；無天數時回傳 null
+function describeDays(days) {
+  if (typeof days !== "number") return null;
+  if (days < 0) return { text: `已逾 ${Math.abs(days)} 天`, tone: "overdue" };
+  if (days === 0) return { text: "今日截止", tone: "soon" };
+  if (days <= 3) return { text: `剩 ${days} 天`, tone: "soon" };
+  return { text: `剩 ${days} 天`, tone: "normal" };
+}
+
+// 一次算好清單、側邊欄共用的案件摘要，避免各處重複計算
+function summarizeIncident(incident, today) {
+  const typeConf = INCIDENT_TYPES[incident.type];
+  if (!typeConf) return null;
+  const total = typeConf.steps.length;
+  const done = typeConf.steps.filter(s => incident.checkedSteps && incident.checkedSteps[s.id]).length;
+  const closed = incident.status === "closed";
+  const { urgent, status } = closed ? { urgent: null, status: null } : getMostUrgent(typeConf, incident, today);
+  let tone = "normal";
+  if (closed || done === total) tone = "done";
+  else if (status?.key === "overdue") tone = "overdue";
+  else if (status?.key === "soon") tone = "soon";
+  const bucket = !status ? 3 : STATUS_ORDER[status.key];
+  return {
+    typeConf, total, done, closed, urgent, status, tone,
+    percent: total > 0 ? Math.round((done / total) * 100) : 0,
+    sortScore: bucket * 1000000 + (status?.days ?? 0)
+  };
+}
+
+const TONE_COLOR = { overdue: "#c0392b", soon: "#e67e22", done: "#27ae60" };
+
+function getSidebarOrderedActive(incidents, summaries, manualOrder) {
+  const active = incidents.filter(i => i.status !== "closed" && summaries.has(i.id));
+  if (manualOrder && manualOrder.length > 0) {
+    const byId = new Map(active.map(i => [i.id, i]));
+    const ordered = [];
+    manualOrder.forEach(id => {
+      if (byId.has(id)) { ordered.push(byId.get(id)); byId.delete(id); }
+    });
+    byId.forEach(i => ordered.push(i));
+    return ordered;
+  }
+  return active.slice().sort((a, b) => summaries.get(a.id).sortScore - summaries.get(b.id).sortScore);
+}
+
+/* ==========================================================
+   匯出：CSV / 備份
+========================================================== */
+
+// 避免試算表公式注入（=、+、-、@ 開頭的儲存格會被 Excel 當成公式執行）
+function csvCell(value) {
+  let s = String(value ?? "");
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function safeFileName(name) {
+  const cleaned = String(name || "").replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim().slice(0, 60);
+  return cleaned || "案件";
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildCaseCsv(incident, typeConf, today) {
+  const rows = [["步驟編號", "步驟名稱", "截止日期", "狀態", "負責人", "備注", "法規依據"]];
+  typeConf.steps.forEach(step => {
+    rows.push([
+      step.id,
+      step.name,
+      formatDeadline(typeConf, step, incident.incidentDate),
+      getStepStatus(typeConf, step, incident, today).label,
+      incident.assignees?.[step.id] || "",
+      (incident.notes?.[step.id] || "").replace(/\r?\n/g, " "),
+      step.law || ""
+    ]);
+  });
+  return "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+}
+
+/* ==========================================================
+   主應用程式
+========================================================== */
+
+// 「今天」每分鐘與切回分頁時更新，避免頁面開著跨日後狀態停留在前一天
+function useToday() {
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const refresh = () => setToday(prev => {
+      const now = new Date();
+      return now.toDateString() === prev.toDateString() ? prev : now;
+    });
+    const timer = setInterval(refresh, 60000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, []);
+  return today;
+}
+
+function useIsMobile() {
+  const query = "(max-width: 768px)";
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = e => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
+
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const notify = useCallback((message, kind = "info") => {
+    const id = uuid();
+    setToasts(list => [...list.slice(-2), { id, message, kind }]);
+    setTimeout(() => setToasts(list => list.filter(t => t.id !== id)), kind === "error" ? 6000 : 3000);
+  }, []);
+  return [toasts, notify];
+}
+
+function App() {
+  const [view, setView] = useState({ name: "list" }); // list | new | check
+  const [initial] = useState(() => loadIncidents());
+  const [incidents, setIncidents] = useState(initial.list);
+  const [storageError, setStorageError] = useState(
+    initial.error
+      ? "無法讀取已儲存的案件資料（瀏覽器儲存空間被停用，或資料已損毀）。為避免覆蓋原有資料，本次操作將不會被保存。"
+      : null
+  );
+  const [toasts, notify] = useToasts();
+  const today = useToday();
+  const isMobile = useIsMobile();
+  const selfTest = useMemo(() => new URLSearchParams(location.search).has("selftest"), []);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (window.matchMedia("(max-width: 768px)").matches) return true; // 手機一律先收合
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"; }
+    catch (e) { return false; }
+  });
+  const [manualOrder, setManualOrder] = useState(readSidebarOrder);
+
+  // 寫入失敗時通知使用者（例如空間已滿），而不是靜默遺失資料
+  const lastSaveOk = useRef(true);
+  useEffect(() => {
+    if (initial.error) return;
+    const ok = saveIncidents(incidents);
+    if (!ok && lastSaveOk.current) {
+      notify("儲存失敗：瀏覽器儲存空間已滿或被停用，請立即「匯出備份」。", "error");
+    }
+    lastSaveOk.current = ok;
+  }, [incidents]);
+
+  // 只記錄使用者主動切換的偏好；手機版自動收合不寫入
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0"); }
+      catch (e) { console.error("sidebar_collapsed 寫入失敗", e); }
+      return next;
+    });
+  }, []);
+  useEffect(() => {
+    try {
+      if (manualOrder && manualOrder.length > 0) {
+        localStorage.setItem(SIDEBAR_ORDER_KEY, JSON.stringify(manualOrder));
+      } else {
+        localStorage.removeItem(SIDEBAR_ORDER_KEY);
+      }
+    } catch (e) { console.error("sidebar_order 寫入失敗", e); }
+  }, [manualOrder]);
+
+  // 同時開啟多個分頁時，同步其他分頁的修改，避免互相覆蓋
+  useEffect(() => {
+    const onStorage = e => {
+      if (e.key === STORAGE_KEY) {
+        const { list, error } = loadIncidents();
+        if (!error) setIncidents(list);
+      } else if (e.key === SIDEBAR_ORDER_KEY) {
+        setManualOrder(readSidebarOrder());
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const summaries = useMemo(() => {
+    const map = new Map();
+    incidents.forEach(inc => {
+      const s = summarizeIncident(inc, today);
+      if (s) map.set(inc.id, s);
+    });
+    return map;
+  }, [incidents, today]);
+
+  const updateIncident = useCallback((id, updater) => {
+    setIncidents(list => list.map(it => it.id === id ? updater(it) : it));
+  }, []);
+
+  const addIncident = useCallback(inc => {
+    setIncidents(list => [inc, ...list]);
+  }, []);
+
+  const deleteIncident = useCallback(id => {
+    setIncidents(list => list.filter(it => it.id !== id));
+    setManualOrder(prev => {
+      if (!prev) return prev;
+      const next = prev.filter(x => x !== id);
+      return next.length === 0 ? null : next;
+    });
+  }, []);
+
+  const exportBackup = useCallback(() => {
+    const payload = { app: "school_incidents", version: 1, exportedAt: new Date().toISOString(), incidents };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    downloadBlob(blob, `校園事件備份_${toDateInputValue(new Date())}.json`);
+    notify(`已匯出 ${incidents.length} 筆案件備份`);
+  }, [incidents, notify]);
+
+  const importBackup = useCallback((list, mode) => {
+    setIncidents(prev => {
+      if (mode === "replace") return list;
+      const byId = new Map(prev.map(i => [i.id, i]));
+      list.forEach(i => byId.set(i.id, i));
+      return Array.from(byId.values());
+    });
+    notify(`已匯入 ${list.length} 筆案件`);
+  }, [notify]);
+
+  const navigate = useCallback(next => {
+    setView(next);
+    if (isMobile) setSidebarCollapsed(true);
+    window.scrollTo(0, 0);
+  }, [isMobile]);
+
+  return (
+    <div className="app-layout">
+      {isMobile && !sidebarCollapsed && (
+        <button className="sidebar-backdrop" aria-label="關閉側邊欄" onClick={() => setSidebarCollapsed(true)} />
+      )}
+      <Sidebar
+        incidents={incidents}
+        summaries={summaries}
+        currentId={view.name === "check" ? view.id : null}
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
+        onSelect={id => navigate({ name: "check", id })}
+        onNew={() => navigate({ name: "new" })}
+        manualOrder={manualOrder}
+        setManualOrder={setManualOrder}
+      />
+      <main className={"app-main" + (sidebarCollapsed ? " sidebar-collapsed" : "")}>
+        <div className="app-container">
+          {storageError && <div className="storage-warning" role="alert">⚠️ {storageError}</div>}
+          {selfTest && <SelfTestPanel />}
+          {view.name === "list" && (
+            <IncidentListView
+              incidents={incidents}
+              summaries={summaries}
+              onNew={() => navigate({ name: "new" })}
+              onOpen={id => navigate({ name: "check", id })}
+              onDelete={deleteIncident}
+              onExportBackup={exportBackup}
+              onImportBackup={importBackup}
+              notify={notify}
+            />
+          )}
+          {view.name === "new" && (
+            <NewIncidentView
+              today={today}
+              onCancel={() => navigate({ name: "list" })}
+              onCreate={inc => {
+                addIncident(inc);
+                navigate({ name: "check", id: inc.id });
+              }}
+            />
+          )}
+          {view.name === "check" && (
+            <ProcessCheckView
+              key={view.id}
+              incident={incidents.find(it => it.id === view.id)}
+              today={today}
+              notify={notify}
+              onBack={() => navigate({ name: "list" })}
+              onUpdate={updater => updateIncident(view.id, updater)}
+            />
+          )}
+        </div>
+      </main>
+      <div className="toast-wrap" aria-live="polite">
+        {toasts.map(t => <div key={t.id} className={"toast" + (t.kind === "error" ? " error" : "")}>{t.message}</div>)}
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================
+   畫面 A：案件清單
+========================================================== */
+
+function IncidentListView({ incidents, summaries, onNew, onOpen, onDelete, onExportBackup, onImportBackup, notify }) {
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingImport, setPendingImport] = useState(null);
+  const fileRef = useRef(null);
+
+  // 進行中在前、已結案在後；同組依緊急度排序
+  const ordered = useMemo(() => incidents
+    .filter(i => summaries.has(i.id))
+    .slice()
+    .sort((a, b) => {
+      const sa = summaries.get(a.id), sb = summaries.get(b.id);
+      if (sa.closed !== sb.closed) return sa.closed ? 1 : -1;
+      return sa.sortScore - sb.sortScore;
+    }), [incidents, summaries]);
+
+  const handleFile = e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > BACKUP_MAX_BYTES) {
+      notify("檔案過大（上限 5MB），請確認是否為本系統的備份檔。", "error");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        const rawList = Array.isArray(data) ? data : data && data.incidents;
+        if (!Array.isArray(rawList)) throw new Error("格式不符");
+        const list = normalizeIncidentList(rawList);
+        if (list.length === 0) throw new Error("沒有可匯入的案件");
+        setPendingImport({ list, skipped: rawList.length - list.length });
+      } catch (err) {
+        const reason = err instanceof SyntaxError ? "不是 JSON 格式" : err.message;
+        notify("匯入失敗：檔案不是有效的案件備份（" + reason + "）", "error");
+      }
+    };
+    reader.onerror = () => notify("讀取檔案失敗，請重新選擇。", "error");
+    reader.readAsText(file);
+  };
+
+  return (
+    <>
+      <header className="app-header">
+        <h1 className="app-title" style={{ margin: 0 }}>
+          <span className="logo" aria-hidden="true">🏫</span>
+          <span>
+            校園事件流程檢核系統
+            <span className="app-subtitle" style={{ display: "block" }}>School Incident Workflow Checker</span>
+          </span>
+        </h1>
+        <button className="btn btn-primary" onClick={onNew}>＋ 新增案件</button>
+      </header>
+
+      <div className="list-toolbar">
+        <button className="btn btn-ghost btn-small" onClick={onExportBackup} disabled={incidents.length === 0}>
+          ⬇️ 匯出備份
+        </button>
+        <button className="btn btn-ghost btn-small" onClick={() => fileRef.current && fileRef.current.click()}>
+          ⬆️ 匯入備份
+        </button>
+        <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={handleFile} />
+      </div>
+
+      {ordered.length === 0 ? (
+        <div className="empty-state">
+          <div className="icon" aria-hidden="true">📋</div>
+          <div className="text">尚無案件，點擊新增案件開始</div>
+          <div className="sub">資料僅儲存在本機瀏覽器，建議定期「匯出備份」。</div>
+          <button className="btn btn-primary" onClick={onNew} style={{ marginTop: 20 }}>＋ 新增案件</button>
+        </div>
+      ) : (
+        <div className="card-grid">
+          {ordered.map(inc => (
+            <IncidentCard
+              key={inc.id}
+              incident={inc}
+              summary={summaries.get(inc.id)}
+              onOpen={() => onOpen(inc.id)}
+              onDelete={() => setPendingDelete(inc)}
+            />
+          ))}
+        </div>
+      )}
+
+      {pendingDelete && (
+        <ConfirmModal
+          title="確認刪除案件？"
+          message={`即將刪除「${pendingDelete.name}」，包含所有勾選紀錄、備注與處理日誌，刪除後無法復原。`}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => { onDelete(pendingDelete.id); setPendingDelete(null); notify("已刪除案件"); }}
+        />
+      )}
+      {pendingImport && (
+        <Modal title="匯入備份" onCancel={() => setPendingImport(null)}>
+          <p>
+            備份檔內有 {pendingImport.list.length} 筆可匯入的案件
+            {pendingImport.skipped > 0 ? `（另有 ${pendingImport.skipped} 筆格式錯誤已略過）` : ""}。
+            請選擇匯入方式：
+          </p>
+          <ul className="missing-list" style={{ background: "#eef4fa", borderLeftColor: "#2874a6", color: "#1b4f72" }}>
+            <li><strong>合併</strong>：保留現有案件，相同案件以備份檔內容覆蓋。</li>
+            <li><strong>全部取代</strong>：刪除目前所有案件，改為備份檔內容。</li>
+          </ul>
+          <div className="modal-actions">
+            <button className="btn btn-secondary" onClick={() => setPendingImport(null)}>取消</button>
+            <button className="btn btn-danger" onClick={() => { onImportBackup(pendingImport.list, "replace"); setPendingImport(null); }}>
+              全部取代
+            </button>
+            <button className="btn btn-primary" data-autofocus onClick={() => { onImportBackup(pendingImport.list, "merge"); setPendingImport(null); }}>
+              合併
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function IncidentCard({ incident, summary, onOpen, onDelete }) {
+  const { typeConf, total, done, closed, urgent, status, tone, percent } = summary;
+  const cardStatus = tone === "normal" ? "normal" : tone;
+  const days = describeDays(status?.days);
+  const onKeyDown = e => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); }
+  };
+
+  return (
+    <article
+      className={`incident-card status-${cardStatus}` + (closed ? " is-closed" : "")}
+      onClick={onOpen}
+      onKeyDown={onKeyDown}
+      tabIndex={0}
+      aria-label={`開啟案件：${incident.name}`}
+    >
+      <button
+        className="card-delete"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        aria-label={`刪除案件「${incident.name}」`}
+        title="刪除案件"
+      >✕</button>
+
+      <div className="card-tags">
+        <span className="type-tag" style={{ background: typeConf.color }}>
+          <span aria-hidden="true">{typeConf.icon}</span>{typeConf.name}
+        </span>
+        {closed && <span className="closed-badge">🏁 已結案</span>}
+      </div>
+      <div className="case-name">{incident.name}</div>
+      <div className="meta">事件發生日：{fmtDate(parseDate(incident.incidentDate))}</div>
+
+      <div className="progress-wrap" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label="完成進度">
+        <div className="progress-bar" style={{ width: percent + "%" }} />
+      </div>
+      <div className="progress-label">
+        <span>進度 {done} / {total}</span>
+        <span>{percent}%</span>
+      </div>
+
+      {closed ? (
+        <div className="urgent-step is-done">
+          🏁 已於 {fmtDate(incident.closedAt ? new Date(incident.closedAt) : null) || "—"} 結案
+          {done < total ? `（${total - done} 項未勾選）` : ""}
+        </div>
+      ) : done === total ? (
+        <div className="urgent-step is-done">🎉 所有步驟皆已完成，可進行結案</div>
+      ) : urgent ? (
+        <div className={"urgent-step" + (status.key === "overdue" ? " is-overdue" : status.key === "soon" ? " is-soon" : "")}>
+          <div className="u-head">
+            {status.key === "overdue" ? "⚠️ 已逾期" : status.key === "soon" ? "⏰ 即將到期" : "📌 下一步"}
+          </div>
+          <div>步驟 {urgent.id}：{urgent.name}</div>
+          {days && <div className="u-days">{days.text}</div>}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+/* ==========================================================
+   畫面 B：新增案件
+========================================================== */
+
+function NewIncidentView({ today, onCancel, onCreate }) {
+  const [type, setType] = useState(null);
+  const [name, setName] = useState("");
+  const [date, setDate] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const todayStr = toDateInputValue(today);
+  const parsedDate = parseDate(date);
+  const errors = {
+    type: !type ? "請選擇事件類型" : null,
+    name: !name.trim() ? "請輸入案件名稱" : name.trim().length > NAME_MAX ? `案件名稱請勿超過 ${NAME_MAX} 字` : null,
+    date: !date ? "請選擇事件發生日期"
+      : !parsedDate ? "日期格式不正確"
+      : date > todayStr ? "事件發生日期不可晚於今天"
+      : null
+  };
+  const hasError = Object.values(errors).some(Boolean);
+
+  const submit = e => {
+    e.preventDefault();
+    setTouched(true);
+    if (hasError) return;
+    const now = new Date().toISOString();
+    onCreate({
+      id: uuid(),
+      type,
+      name: name.trim(),
+      incidentDate: date,
+      checkedSteps: {},
+      notes: {},
+      assignees: {},
+      activityLog: [{ id: uuid(), timestamp: now, content: "🆕 案件建立", type: "auto" }],
+      status: "active",
+      closedAt: null,
+      createdAt: now
+    });
+  };
+
+  return (
+    <>
+      <header className="app-header">
+        <h1 className="app-title" style={{ margin: 0 }}>
+          <span className="logo" aria-hidden="true">📝</span>
+          新增案件
+        </h1>
+        <button className="btn btn-ghost" onClick={onCancel}>← 返回</button>
+      </header>
+
+      <form className="panel" onSubmit={submit} noValidate>
+        <h2><span className="step-badge">1</span>選擇事件類型</h2>
+        <div className="step-hint">請選擇此次事件對應的法規類型，系統將自動套用相應的處理流程。</div>
+        <div className="type-grid" role="radiogroup" aria-label="事件類型">
+          {Object.entries(INCIDENT_TYPES).map(([key, t]) => (
+            <button
+              type="button"
+              key={key}
+              role="radio"
+              aria-checked={type === key}
+              className={"type-btn" + (type === key ? " selected" : "")}
+              style={type === key ? { borderColor: t.color, "--type-color": t.color } : null}
+              onClick={() => setType(key)}
+            >
+              <span className="ic" aria-hidden="true">{t.icon}</span>
+              <span className="nm" style={type === key ? { color: t.color } : null}>{t.name}</span>
+              <div className="desc">{t.desc}</div>
+            </button>
+          ))}
+        </div>
+        {touched && errors.type && <div className="field-error" style={{ marginTop: -22, marginBottom: 20 }}>{errors.type}</div>}
+
+        <h2><span className="step-badge">2</span>輸入案件資訊</h2>
+        <div className="step-hint">案件名稱僅供識別用途，建議使用代號（如 115-001），避免輸入學生姓名等可識別個資。</div>
+
+        <div className="form-grid">
+          <div className="form-row">
+            <label htmlFor="case-name">案件名稱<span className="req">*</span></label>
+            <input
+              id="case-name"
+              type="text"
+              placeholder="例：115-001 / 五年級霸凌案"
+              value={name}
+              maxLength={NAME_MAX + 10}
+              aria-invalid={touched && !!errors.name}
+              onChange={e => setName(e.target.value)}
+            />
+            {touched && errors.name
+              ? <div className="field-error">{errors.name}</div>
+              : <div className="field-help">{name.trim().length} / {NAME_MAX} 字</div>}
+          </div>
+          <div className="form-row">
+            <label htmlFor="case-date">事件發生日期<span className="req">*</span></label>
+            <input
+              id="case-date"
+              type="date"
+              value={date}
+              max={todayStr}
+              aria-invalid={touched && !!errors.date}
+              onChange={e => setDate(e.target.value)}
+            />
+            {touched && errors.date
+              ? <div className="field-error">{errors.date}</div>
+              : <div className="field-help">所有期限皆由此日起算</div>}
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>取消</button>
+          <button type="submit" className="btn btn-primary">建立案件 →</button>
+        </div>
+      </form>
+    </>
+  );
+}
+
+/* ==========================================================
+   畫面 C：流程檢核
+========================================================== */
+
+function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
+  const [filter, setFilter] = useState("all");
+  const [fabOpen, setFabOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [logExpanded, setLogExpanded] = useState(false);
+  const [newLogText, setNewLogText] = useState("");
+  const [closeModal, setCloseModal] = useState(null);
+  const [reopenConfirm, setReopenConfirm] = useState(false);
+  const [delLogId, setDelLogId] = useState(null);
+  const fabRef = useRef(null);
+
+  // 列印前先切回「全部」，待畫面更新後再呼叫列印，確保印出完整步驟清單
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done, { once: true });
+    const t = setTimeout(() => { window.print(); done(); }, 50);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", done); };
+  }, [printing]);
+
+  useEffect(() => {
+    if (!fabOpen) return;
+    const onKey = e => { if (e.key === "Escape") setFabOpen(false); };
+    const onClick = e => { if (fabRef.current && !fabRef.current.contains(e.target)) setFabOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onClick); };
+  }, [fabOpen]);
+
+  const typeConf = incident ? INCIDENT_TYPES[incident.type] : null;
+
+  if (!incident || !typeConf) {
+    return (
+      <div className="empty-state">
+        <div className="icon" aria-hidden="true">❓</div>
+        <div className="text">{incident ? "此案件的事件類型無法辨識。" : "找不到案件，可能已被刪除。"}</div>
+        <button className="btn btn-primary" onClick={onBack} style={{ marginTop: 16 }}>返回清單</button>
+      </div>
+    );
+  }
+
+  const isClosed = incident.status === "closed";
+
+  const stepsWithStatus = typeConf.steps.map(step => ({
+    step,
+    status: getStepStatus(typeConf, step, incident, today)
+  }));
+
+  const counts = stepsWithStatus.reduce((acc, x) => {
+    acc[x.status.key] = (acc[x.status.key] || 0) + 1;
+    return acc;
+  }, { overdue: 0, soon: 0, todo: 0, done: 0 });
+
+  const total = typeConf.steps.length;
+  const percent = Math.round((counts.done / total) * 100);
+  const allDone = counts.done === total;
+  const todoLabel = isClosed ? "未完成" : "待辦";
+
+  const activeFilter = printing ? "all" : filter;
+  const filtered = stepsWithStatus.filter(x => activeFilter === "all" || x.status.key === activeFilter);
+
+  const toggleCheck = (stepId) => {
+    if (isClosed) return;
+    onUpdate(inc => {
+      const next = { ...inc.checkedSteps };
+      const stepName = typeConf.steps.find(s => s.id === stepId)?.name || `步驟 ${stepId}`;
+      let logContent;
+      if (next[stepId]) {
+        delete next[stepId];
+        logContent = `↩️ 步驟${stepId}「${stepName}」取消完成`;
+      } else {
+        next[stepId] = true;
+        logContent = `✅ 步驟${stepId}「${stepName}」已完成`;
+      }
+      return appendLog({ ...inc, checkedSteps: next }, logContent, "auto");
+    });
+  };
+  const updateNote = (stepId, text) => {
+    if (isClosed) return;
+    onUpdate(inc => {
+      const next = { ...inc.notes };
+      if (text && text.trim()) next[stepId] = text.slice(0, NOTE_MAX);
+      else delete next[stepId];
+      return { ...inc, notes: next };
+    });
+  };
+  const updateAssignee = (stepId, val) => {
+    if (isClosed) return;
+    onUpdate(inc => {
+      const next = { ...(inc.assignees || {}) };
+      if (val) next[stepId] = val;
+      else delete next[stepId];
+      return { ...inc, assignees: next };
+    });
+  };
+
+  const addManualLog = () => {
+    const text = newLogText.trim();
+    if (!text || isClosed) return;
+    onUpdate(inc => appendLog(inc, text.slice(0, LOG_TEXT_MAX), "manual"));
+    setNewLogText("");
+  };
+  const deleteLog = (logId) => {
+    onUpdate(inc => ({
+      ...inc,
+      activityLog: (inc.activityLog || []).filter(l => l.id !== logId)
+    }));
+    setDelLogId(null);
+  };
+
+  const requestClose = () => {
+    const missing = typeConf.steps.filter(s =>
+      s.required && !(incident.checkedSteps && incident.checkedSteps[s.id])
+    );
+    setCloseModal({ missing });
+  };
+  const confirmClose = () => {
+    onUpdate(inc => {
+      const closed = { ...inc, status: "closed", closedAt: new Date().toISOString() };
+      return appendLog(closed, "🏁 案件結案", "auto");
+    });
+    setCloseModal(null);
+    notify("案件已結案");
+  };
+  const confirmReopen = () => {
+    onUpdate(inc => {
+      const opened = { ...inc, status: "active", closedAt: null };
+      return appendLog(opened, "🔄 案件重新開啟", "auto");
+    });
+    setReopenConfirm(false);
+    notify("案件已重新開啟");
+  };
+
+  const doPrint = () => { setFabOpen(false); setPrinting(true); };
+  const doExportCSV = () => {
+    setFabOpen(false);
+    try {
+      const csv = buildCaseCsv(incident, typeConf, today);
+      downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+        `${safeFileName(incident.name)}_${toDateInputValue(new Date())}.csv`);
+      notify("已匯出 CSV");
+    } catch (err) {
+      console.error("CSV 匯出失敗", err);
+      notify("CSV 匯出失敗，請再試一次。", "error");
+    }
+  };
+
+  const logs = incident.activityLog || [];
+  const pills = [
+    { key: "overdue", label: "逾期", n: counts.overdue },
+    { key: "soon", label: "即將到期", n: counts.soon },
+    { key: "todo", label: todoLabel, n: counts.todo },
+    { key: "done", label: "已完成", n: counts.done }
+  ];
+
+  return (
+    <>
+      <header className="app-header">
+        <h1 className="app-title" style={{ margin: 0, fontSize: 20 }}>
+          <span className="logo" style={{ background: typeConf.color, fontSize: 26 }} aria-hidden="true">{typeConf.icon}</span>
+          流程檢核
+        </h1>
+        <div className="header-actions">
+          {isClosed ? (
+            <button className="btn btn-ghost" onClick={() => setReopenConfirm(true)}>🔄 重新開啟案件</button>
+          ) : (
+            <button className="btn btn-ghost" onClick={requestClose}>🏁 結案</button>
+          )}
+          <button className="btn btn-ghost" onClick={onBack}>← 返回清單</button>
+        </div>
+      </header>
+
+      <section className="check-header">
+        <div className="tags">
+          <span className="type-tag" style={{ background: typeConf.color }}>
+            <span aria-hidden="true">{typeConf.icon}</span>{typeConf.name}
+          </span>
+          {isClosed && (
+            <span className="closed-badge">
+              🏁 已結案{incident.closedAt ? `（${fmtDate(new Date(incident.closedAt))}）` : ""}
+            </span>
+          )}
+        </div>
+        <h2>{incident.name}</h2>
+        <div className="meta">
+          事件發生日：{fmtDate(parseDate(incident.incidentDate))}　·
+          計算方式：{typeConf.dayMode === "work" ? "工作日（排除週六日）" : typeConf.dayMode === "mixed" ? "前段以小時計／後段日曆天" : "日曆天"}
+          <span className="print-only">列印日期：{fmtDate(new Date())}　·　法規依據：{typeConf.desc}</span>
+        </div>
+      </section>
+
+      {isClosed && (
+        <div className="readonly-banner">
+          🔒 此案件已結案，所有步驟、備注、負責人指派為唯讀狀態。如需修改請點右上「重新開啟案件」。
+        </div>
+      )}
+
+      <section className="summary-bar" aria-label="進度總覽">
+        <div className="summary-title">
+          <span>整體進度 {counts.done} / {total}</span>
+          <span className="pct">{percent}%</span>
+        </div>
+        <div className="progress-wrap" style={{ marginTop: 10 }} role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={counts.done} aria-label="完成進度">
+          <div className="progress-bar" style={{ width: percent + "%" }} />
+        </div>
+        <div className="summary-row">
+          {pills.map(p => (
+            <button
+              key={p.key}
+              type="button"
+              className={"summary-pill " + p.key}
+              aria-pressed={filter === p.key}
+              title={`只顯示「${p.label}」`}
+              onClick={() => setFilter(f => f === p.key ? "all" : p.key)}
+            >
+              <span className="num">{p.n}</span>{p.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {allDone && !isClosed && (
+        <div className="banner allDone" role="status">🎉 所有步驟皆已完成，可點右上「結案」完成歸檔。</div>
+      )}
+      {!allDone && !isClosed && counts.overdue > 0 && (
+        <div className="banner overdue" role="alert">⚠️ 有 {counts.overdue} 項步驟已逾期，請儘速處理！</div>
+      )}
+      {!allDone && !isClosed && counts.overdue === 0 && counts.soon > 0 && (
+        <div className="banner soon" role="status">⏰ 有 {counts.soon} 項步驟即將到期（3日內）</div>
+      )}
+
+      <section className="activity-log-section">
+        <button
+          type="button"
+          className="activity-log-header"
+          aria-expanded={logExpanded}
+          aria-controls="activity-log-body"
+          onClick={() => setLogExpanded(x => !x)}
+        >
+          <span className="activity-log-title">
+            <span>📒 處理日誌</span>
+            <span className="log-badge">{logs.length}</span>
+          </span>
+          <span className="activity-log-toggle">{logExpanded ? "▲ 收合" : "▼ 展開"}</span>
+        </button>
+        {logExpanded && (
+          <div className="activity-log-body" id="activity-log-body">
+            {!isClosed && (
+              <div className="log-input-row">
+                <input
+                  type="text"
+                  value={newLogText}
+                  maxLength={LOG_TEXT_MAX}
+                  aria-label="新增處理紀錄"
+                  onChange={e => setNewLogText(e.target.value)}
+                  placeholder="輸入處理紀錄（如家長溝通、會議結論），按 Enter 新增"
+                  onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) addManualLog(); }}
+                />
+                <button className="btn btn-primary btn-small" onClick={addManualLog} disabled={!newLogText.trim()}>新增紀錄</button>
+              </div>
+            )}
+            {logs.length === 0 ? (
+              <div className="log-empty">尚無日誌紀錄</div>
+            ) : (
+              <ul className="log-timeline">
+                {logs.map(entry => (
+                  <li key={entry.id} className={"log-entry " + (entry.type || "manual")}>
+                    <time className="log-time" dateTime={entry.timestamp}>{formatLogTime(entry.timestamp)}</time>
+                    <span className="log-content">{entry.content}</span>
+                    {entry.type === "manual" && !isClosed && (
+                      <button className="log-del" onClick={() => setDelLogId(entry.id)} aria-label="刪除此筆紀錄">刪除</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+
+      <div className="filter-tabs" role="group" aria-label="依狀態篩選">
+        {[
+          { key: "all", label: `全部 (${total})` },
+          { key: "overdue", label: `逾期 (${counts.overdue})` },
+          { key: "soon", label: `即將到期 (${counts.soon})` },
+          { key: "todo", label: `${todoLabel} (${counts.todo})` },
+          { key: "done", label: `已完成 (${counts.done})` }
+        ].map(t => (
+          <button
+            key={t.key}
+            className={filter === t.key ? "active" : ""}
+            aria-pressed={filter === t.key}
+            onClick={() => setFilter(t.key)}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty-state" style={{ padding: "40px 20px" }}>
+          <div className="text">此分類目前沒有步驟</div>
+          <button className="btn btn-secondary" style={{ marginTop: 14 }} onClick={() => setFilter("all")}>顯示全部步驟</button>
+        </div>
+      ) : (
+        filtered.map(({ step, status }) => (
+          <StepCard
+            key={step.id}
+            step={step}
+            status={status}
+            deadlineText={formatDeadline(typeConf, step, incident.incidentDate)}
+            note={incident.notes?.[step.id] || ""}
+            assignee={incident.assignees?.[step.id] || ""}
+            checked={!!incident.checkedSteps?.[step.id]}
+            readOnly={isClosed}
+            onToggle={() => toggleCheck(step.id)}
+            onNoteChange={(text) => updateNote(step.id, text)}
+            onAssigneeChange={(v) => updateAssignee(step.id, v)}
+          />
+        ))
+      )}
+
+      <div className="fab" ref={fabRef}>
+        {fabOpen && (
+          <div className="fab-menu" role="menu">
+            <button role="menuitem" onClick={doPrint}>🖨️ 列印</button>
+            <button role="menuitem" onClick={doExportCSV}>📊 匯出 CSV</button>
+          </div>
+        )}
+        <button
+          className="fab-main"
+          onClick={() => setFabOpen(o => !o)}
+          aria-haspopup="menu"
+          aria-expanded={fabOpen}
+          aria-label="列印 / 匯出"
+        >
+          <span aria-hidden="true">{fabOpen ? "✕" : "🖨️"}</span>
+          <span className="fab-label">列印 / 匯出</span>
+        </button>
+      </div>
+
+      {closeModal && (
+        <CloseCaseModal
+          missing={closeModal.missing}
+          onCancel={() => setCloseModal(null)}
+          onConfirm={confirmClose}
+        />
+      )}
+      {reopenConfirm && (
+        <ConfirmModal
+          title="重新開啟案件？"
+          message="重新開啟後，所有步驟、備注、負責人欄位將恢復可編輯狀態，並會在處理日誌留下紀錄。"
+          confirmLabel="確認重啟"
+          confirmClass="btn-primary"
+          onCancel={() => setReopenConfirm(false)}
+          onConfirm={confirmReopen}
+        />
+      )}
+      {delLogId && (
+        <ConfirmModal
+          title="刪除這筆日誌？"
+          message="刪除後無法復原。"
+          onCancel={() => setDelLogId(null)}
+          onConfirm={() => deleteLog(delLogId)}
+        />
+      )}
+    </>
+  );
+}
+
+/* ==========================================================
+   單一步驟卡片
+========================================================== */
+
+const ASSIGNEE_OPTIONS = ["學務主任", "生教組", "輔導室", "導師", "其他"];
+
+function StepCard({ step, status, deadlineText, note, assignee, checked, readOnly, onToggle, onNoteChange, onAssigneeChange }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note);
+
+  useEffect(() => { setDraft(note); }, [note]);
+  useEffect(() => { if (readOnly) setEditing(false); }, [readOnly]);
+
+  const cardCls = `step-card s-${status.key}` + (readOnly ? " readonly" : "");
+  const statusTagCls = `status-tag s-${status.key}`;
+  const hourBased = typeof step.hours !== "undefined";
+  const dayHint = status.key === "done" || hourBased ? null : describeDays(status.days);
+
+  const save = () => { onNoteChange(draft); setEditing(false); };
+  const cancel = () => { setDraft(note); setEditing(false); };
+  const onNoteKey = e => {
+    if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); }
+  };
+  const selectId = `assignee-${step.id}`;
+
+  return (
+    <article className={cardCls}>
+      <div className="step-head">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={checked}
+          aria-label={`步驟 ${step.id}：${step.name}`}
+          className={"step-check" + (checked ? " checked" : "")}
+          onClick={onToggle}
+          disabled={readOnly}
+          title={readOnly ? "案件已結案，無法修改" : (checked ? "點擊取消完成" : "點擊標記為完成")}
+        >{checked ? "✓" : ""}</button>
+        <div className="step-body">
+          <div className="step-title-row">
+            <span className="step-num">{step.id}</span>
+            <span className="step-title">{step.name}</span>
+            {step.required && <span className="req-tag">必要</span>}
+            <span className={statusTagCls}>{status.label}</span>
+            {assignee && <span className="assignee-tag">👤 {assignee}</span>}
+          </div>
+
+          <div className="step-deadline">
+            <strong>截止：</strong>{deadlineText}
+            {dayHint && <span className={"days " + dayHint.tone}>{dayHint.text}</span>}
+          </div>
+
+          {step.law && <div className="step-law">📖 {step.law}</div>}
+
+          {step.composition && (
+            <div className="composition-note">
+              <strong>📋 組成條件：</strong>{step.composition}
+            </div>
+          )}
+
+          {step.crossSchoolNote && (
+            <div className="cross-school-note">
+              <strong>🔗 跨校提示：</strong>{step.crossSchoolNote}
+            </div>
+          )}
+
+          {!readOnly && (
+            <div className="assignee-row">
+              <label htmlFor={selectId}>負責人：</label>
+              <select
+                id={selectId}
+                className="assignee-select"
+                value={assignee || ""}
+                onChange={e => onAssigneeChange(e.target.value)}
+              >
+                <option value="">未指定</option>
+                {ASSIGNEE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="note-section">
+            {!editing && note && (
+              <div className="note-display">📝 {note}</div>
+            )}
+            {!editing && !readOnly && (
+              <button className="note-toggle" onClick={() => setEditing(true)}>
+                {note ? "✏️ 編輯備注" : "＋ 新增備注"}
+              </button>
+            )}
+            {editing && !readOnly && (
+              <div className="note-edit">
+                <textarea
+                  value={draft}
+                  maxLength={NOTE_MAX}
+                  aria-label={`步驟 ${step.id} 備注`}
+                  onChange={e => setDraft(e.target.value)}
+                  onKeyDown={onNoteKey}
+                  placeholder="輸入處理紀錄、會議結果、聯繫對象等備注…（Ctrl/⌘ + Enter 儲存，Esc 取消）"
+                  autoFocus
+                />
+                <div className="note-actions">
+                  <button className="btn btn-primary btn-small" onClick={save}>儲存</button>
+                  <button className="btn btn-secondary btn-small" onClick={cancel}>取消</button>
+                  <span className="note-count">{draft.length} / {NOTE_MAX}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+/* ==========================================================
+   彈窗
+========================================================== */
+
+// 共用對話框：Esc 關閉、開啟時聚焦、Tab 不會跳出對話框、關閉後焦點回到原按鈕
+function Modal({ title, onCancel, children, maxWidth }) {
+  const ref = useRef(null);
+  const titleId = useMemo(() => "modal-title-" + uuid(), []);
+
+  useEffect(() => {
+    const previous = document.activeElement;
+    const node = ref.current;
+    const focusables = () => Array.from(node.querySelectorAll("button, input, select, textarea, [href]"))
+      .filter(el => !el.disabled);
+    const initial = node.querySelector("[data-autofocus]") || focusables()[0];
+    if (initial) initial.focus();
+
+    const onKey = e => {
+      if (e.key === "Escape") { e.preventDefault(); onCancel(); return; }
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      if (list.length === 0) return;
+      const first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      if (previous && typeof previous.focus === "function") previous.focus();
+    };
+  }, []);
+
+  return (
+    <div className="modal-mask" onMouseDown={e => { if (e.target === e.currentTarget) onCancel(); }}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} style={maxWidth ? { maxWidth } : null}>
+        <h3 id={titleId}>{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmModal({ title, message, onCancel, onConfirm, confirmLabel, confirmClass }) {
+  return (
+    <Modal title={title} onCancel={onCancel}>
+      <p>{message}</p>
+      <div className="modal-actions">
+        <button className="btn btn-secondary" data-autofocus onClick={onCancel}>取消</button>
+        <button className={"btn " + (confirmClass || "btn-danger")} onClick={onConfirm}>
+          {confirmLabel || "確認刪除"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function CloseCaseModal({ missing, onCancel, onConfirm }) {
+  const hasMissing = missing.length > 0;
+  return (
+    <Modal title={hasMissing ? "⚠️ 以下必要步驟尚未完成" : "🏁 確定結案？"} onCancel={onCancel} maxWidth={520}>
+      <p>
+        {hasMissing
+          ? "下列步驟標記為「必要」但尚未勾選，確定要結案嗎？結案後步驟將無法修改。"
+          : "所有必要步驟皆已完成。結案後步驟、備注、負責人指派將無法修改。"}
+      </p>
+      {hasMissing && (
+        <ul className="missing-list">
+          {missing.map(s => <li key={s.id}>步驟 {s.id}：{s.name}</li>)}
+        </ul>
+      )}
+      <div className="modal-actions">
+        <button className="btn btn-secondary" data-autofocus={hasMissing ? true : undefined} onClick={onCancel}>取消</button>
+        <button
+          className={hasMissing ? "btn btn-danger" : "btn btn-primary"}
+          data-autofocus={hasMissing ? undefined : true}
+          onClick={onConfirm}
+        >{hasMissing ? "仍要結案" : "確認結案"}</button>
+      </div>
+    </Modal>
+  );
+}
+
+/* ==========================================================
+   側邊欄元件
+========================================================== */
+
+function Sidebar({ incidents, summaries, currentId, collapsed, onToggle, onSelect, onNew, manualOrder, setManualOrder }) {
+  const active = useMemo(
+    () => getSidebarOrderedActive(incidents, summaries, manualOrder),
+    [incidents, summaries, manualOrder]
+  );
+  const closed = useMemo(
+    () => incidents.filter(i => i.status === "closed" && summaries.has(i.id)),
+    [incidents, summaries]
+  );
+
+  const move = (idx, dir) => {
+    const target = idx + dir;
+    if (target < 0 || target >= active.length) return;
+    const ids = active.map(i => i.id);
+    [ids[target], ids[idx]] = [ids[idx], ids[target]];
+    setManualOrder(ids);
+  };
+
+  const renderCard = (inc, idx, isClosed) => collapsed ? (
+    <SidebarIconCard
+      key={inc.id}
+      incident={inc}
+      summary={summaries.get(inc.id)}
+      active={inc.id === currentId}
+      onClick={() => onSelect(inc.id)}
+    />
+  ) : (
+    <SidebarCaseCard
+      key={inc.id}
+      incident={inc}
+      summary={summaries.get(inc.id)}
+      active={inc.id === currentId}
+      onClick={() => onSelect(inc.id)}
+      canUp={!isClosed && idx > 0}
+      canDown={!isClosed && idx < active.length - 1}
+      onUp={isClosed ? null : () => move(idx, -1)}
+      onDown={isClosed ? null : () => move(idx, 1)}
+    />
+  );
+
+  return (
+    <aside className={"sidebar" + (collapsed ? " collapsed" : "")} aria-label="案件導覽">
+      <div className="sidebar-header">
+        {!collapsed && <span className="sidebar-header-title">📂 案件導覽</span>}
+        <button
+          className="sidebar-toggle"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "展開側邊欄" : "收合側邊欄"}
+          title={collapsed ? "展開側邊欄" : "收合側邊欄"}
+        >{collapsed ? "›" : "‹"}</button>
+      </div>
+
+      <nav className="sidebar-body">
+        {!collapsed && manualOrder && manualOrder.length > 0 && (
+          <button className="sidebar-reset" onClick={() => setManualOrder(null)}>↺ 重設為自動排序</button>
+        )}
+
+        {active.length === 0 && closed.length === 0 && !collapsed && (
+          <div className="sidebar-empty">尚無案件<br />點下方按鈕新增</div>
+        )}
+
+        {active.length > 0 && !collapsed && (
+          <div className="sidebar-section-title">進行中 · {active.length}</div>
+        )}
+        {active.map((inc, idx) => renderCard(inc, idx, false))}
+
+        {closed.length > 0 && (
+          <>
+            <div className="sidebar-divider" />
+            {!collapsed && <div className="sidebar-section-title">已結案 · {closed.length}</div>}
+            {closed.map((inc, idx) => renderCard(inc, idx, true))}
+          </>
+        )}
+      </nav>
+
+      <div className="sidebar-footer">
+        <button className="sidebar-new-btn" onClick={onNew} aria-label="新增案件" title="新增案件">
+          <span aria-hidden="true">＋</span>
+          <span className="sidebar-new-btn-text">新增案件</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function SidebarCaseCard({ incident, summary, active, onClick, canUp, canDown, onUp, onDown }) {
+  const { typeConf, total, done, closed, urgent, status, tone } = summary;
+  const days = closed ? null : describeDays(status?.days);
+
+  let cardClass = "sb-case-card";
+  if (active) cardClass += " active";
+  if (closed) cardClass += " closed";
+  else if (tone === "overdue" || tone === "soon") cardClass += " " + tone;
+
+  return (
+    <div className="sb-item">
+      <button
+        type="button"
+        className={cardClass}
+        style={{ borderLeftColor: TONE_COLOR[tone] || typeConf.color }}
+        onClick={onClick}
+        aria-current={active ? "page" : undefined}
+        title={incident.name}
+      >
+        <div className="sb-row1">
+          <span className="sb-icon" aria-hidden="true">{typeConf.icon}</span>
+          <span className="sb-name">{truncate(incident.name, 10)}</span>
+        </div>
+        {closed ? (
+          <div className="sb-meta">🏁 已結案</div>
+        ) : urgent ? (
+          <div className="sb-meta">下一步：{truncate(urgent.name, 14)}</div>
+        ) : (
+          <div className="sb-meta">✅ 所有步驟完成</div>
+        )}
+        <div className="sb-progress">
+          <span>{done} / {total} 步</span>
+          {days && <span className={"sb-days " + days.tone}>{days.text}</span>}
+        </div>
+      </button>
+      {(onUp || onDown) && (
+        <div className="sb-order-btns">
+          <button onClick={onUp} disabled={!canUp} aria-label={`將「${incident.name}」上移`} title="上移">▲</button>
+          <button onClick={onDown} disabled={!canDown} aria-label={`將「${incident.name}」下移`} title="下移">▼</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SidebarIconCard({ incident, summary, active, onClick }) {
+  const { typeConf, closed, tone } = summary;
+  let cls = "sb-icon-card";
+  if (active) cls += " active";
+  if (closed) cls += " closed";
+  else if (tone === "overdue" || tone === "soon") cls += " " + tone;
+  const label = incident.name + (closed ? "（已結案）" : "");
+  return (
+    <button
+      type="button"
+      className={cls}
+      style={{ borderLeftColor: TONE_COLOR[tone] || typeConf.color }}
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      aria-label={label}
+      title={label}
+    >
+      <span aria-hidden="true">{typeConf.icon}</span>
+    </button>
+  );
+}
+
+/* ==========================================================
+   自我檢測（網址加上 ?selftest 執行）
+========================================================== */
+
+function runSelfTests() {
+  const results = [];
+  const eq = (name, actual, expected) => {
+    const ok = JSON.stringify(actual) === JSON.stringify(expected);
+    results.push({ name, ok, detail: ok ? "" : `預期 ${JSON.stringify(expected)}，實際 ${JSON.stringify(actual)}` });
+  };
+  const ymd = d => toDateInputValue(d);
+  const d = s => parseDate(s);
+
+  // 工作日 / 日曆天
+  eq("工作日：週五 +1 → 週一", ymd(addWorkDays(d("2026-10-23"), 1)), "2026-10-26");
+  eq("工作日：週一 +5 → 下週一", ymd(addWorkDays(d("2026-10-19"), 5)), "2026-10-26");
+  eq("工作日：週六 +1 → 週一", ymd(addWorkDays(d("2026-10-24"), 1)), "2026-10-26");
+  eq("工作日：+0 為當天", ymd(addWorkDays(d("2026-10-23"), 0)), "2026-10-23");
+  eq("工作日：+20 跨月", ymd(addWorkDays(d("2026-10-01"), 20)), "2026-10-29");
+  eq("日曆天：跨年", ymd(addCalendarDays(d("2026-12-30"), 3)), "2027-01-02");
+  eq("天數差", diffCalendarDays(d("2026-10-22"), d("2026-10-25")), 3);
+
+  // 日期解析
+  eq("不存在的日期回傳 null", parseDate("2026-02-30"), null);
+  eq("格式錯誤回傳 null", parseDate("2026/10/22"), null);
+  eq("日期顯示格式", fmtDate(d("2026-05-01")), "2026/05/01");
+
+  // 狀態判斷
+  const conf = INCIDENT_TYPES.gender;
+  const base = { id: "t", type: "gender", incidentDate: "2026-10-01", checkedSteps: {}, status: "active" };
+  const today = d("2026-10-22");
+  const step4 = conf.steps.find(s => s.id === 4);   // +3 日 → 10/04
+  const step5 = conf.steps.find(s => s.id === 5);   // +20 日 → 10/21
+  const step6 = conf.steps.find(s => s.id === 6);   // +25 日 → 10/26
+  const step7 = conf.steps.find(s => s.id === 7);   // +40 日 → 11/10
+  eq("已勾選 → 已完成", getStepStatus(conf, step4, { ...base, checkedSteps: { 4: true } }, today).key, "done");
+  eq("截止日已過 → 逾期", getStepStatus(conf, step5, base, today), { key: "overdue", label: "逾期", days: -1 });
+  eq("4 天內 → 待辦（>3 天）", getStepStatus(conf, step6, base, today).key, "todo");
+  eq("3 天內 → 即將到期", getStepStatus(conf, step6, base, d("2026-10-23")).key, "soon");
+  eq("遠期 → 待辦", getStepStatus(conf, step7, base, today).key, "todo");
+  eq("已結案未勾選 → 未完成（不計逾期）", getStepStatus(conf, step5, { ...base, status: "closed" }, today), { key: "todo", label: "未完成" });
+
+  // 食物中毒小時制
+  const fp = INCIDENT_TYPES.food_poison;
+  eq("立即", formatDeadline(fp, fp.steps[0], "2026-10-22"), "立即（事件當下）");
+  eq("15 分鐘", formatDeadline(fp, fp.steps[2], "2026-10-22"), "15 分鐘內");
+  eq("2 小時", formatDeadline(fp, fp.steps[5], "2026-10-22"), "2 小時內（2026/10/22）");
+
+  // 剩餘天數文字
+  eq("已逾文字", describeDays(-2), { text: "已逾 2 天", tone: "overdue" });
+  eq("今日截止", describeDays(0), { text: "今日截止", tone: "soon" });
+
+  // 匯出安全
+  eq("CSV 公式注入防護", csvCell("=HYPERLINK(1)"), "\"'=HYPERLINK(1)\"");
+  eq("CSV 引號跳脫", csvCell('a"b'), '"a""b"');
+  eq("檔名不合法字元", safeFileName('a/b:c*?'), "a_b_c__");
+  const csv = buildCaseCsv({ ...base, notes: { 1: "第一行\n第二行" } }, conf, today);
+  eq("CSV 含 BOM", csv.charCodeAt(0), 0xFEFF);
+  eq("CSV 列數 = 步驟數 + 標題", csv.split("\r\n").length, conf.steps.length + 1);
+
+  // 資料正規化
+  eq("損毀紀錄剔除", normalizeIncident({ id: "x" }), null);
+  const n = normalizeIncident({ id: "x", type: "gender", incidentDate: "2026-10-01", checkedSteps: { 1: true, 2: "yes" } });
+  eq("補齊欄位", [n.status, n.notes, n.activityLog, n.checkedSteps], ["active", {}, [], { 1: true }]);
+  eq("重複 ID 去除", normalizeIncidentList([{ id: "a", incidentDate: "2026-01-01" }, { id: "a", incidentDate: "2026-01-02" }]).length, 1);
+
+  // 側邊欄排序
+  const incs = [
+    { ...base, id: "a" },
+    { ...base, id: "b", incidentDate: "2026-06-01" },
+    { ...base, id: "c", status: "closed" }
+  ];
+  const sums = new Map(incs.map(i => [i.id, summarizeIncident(i, today)]));
+  eq("自動排序：逾期較久者在前", getSidebarOrderedActive(incs, sums, null).map(i => i.id), ["b", "a"]);
+  eq("手動排序優先、結案排除", getSidebarOrderedActive(incs, sums, ["a", "c"]).map(i => i.id), ["a", "b"]);
+  eq("結案摘要不顯示緊急步驟", [sums.get("c").tone, sums.get("c").status], ["done", null]);
+
+  return results;
+}
+
+function SelfTestPanel() {
+  const results = useMemo(runSelfTests, []);
+  const failed = results.filter(r => !r.ok);
+  useEffect(() => {
+    console.log(`[自我檢測] ${results.length - failed.length}/${results.length} 通過`, failed);
+  }, []);
+  return (
+    <section className="selftest" aria-label="自我檢測結果">
+      <h3 className={failed.length ? "fail" : "pass"}>
+        自我檢測：{results.length - failed.length} / {results.length} 通過
+      </h3>
+      <ul>
+        {results.map(r => (
+          <li key={r.name} className={r.ok ? "pass" : "fail"}>{r.ok ? "✓" : "✗"} {r.name}{r.detail ? `：${r.detail}` : ""}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* ==========================================================
+   啟動
+========================================================== */
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+window.__APP_MOUNTED__ = true;
+</script>
+</body>
+</html>

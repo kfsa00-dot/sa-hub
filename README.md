@@ -22,6 +22,7 @@
 | `tools/check.py` | **部署前檢查**：SITES 格式、檔案與圖示、VERSION 規則，並跑 SW 測試 |
 | `tools/test_sw.js` | Service Worker 自動化測試（由 check.py 呼叫，用 macOS 內建 jsc 執行） |
 | `xt/`、`sport/` | 其他系統的主畫面捷徑，**不屬於入口**，各有自己的 Service Worker |
+| `incident/` | 校園事件流程檢核系統本體（單一 HTML，資料存在使用者本機），**不屬於入口**、不被入口 SW 快取 |
 
 ---
 
