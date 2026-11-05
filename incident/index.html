@@ -421,6 +421,35 @@
     grid-template-columns: 2fr 1fr;
     gap: 0 16px;
   }
+  .form-grid.three { grid-template-columns: 3fr 2fr 2fr; }
+  .date-inline {
+    padding: 3px 6px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--ink);
+    background: #fff;
+  }
+  .date-inline:focus { border-color: var(--brand); box-shadow: var(--focus); }
+  .step-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--brand-2);
+    cursor: pointer;
+    font-size: 12.5px;
+    padding: 2px;
+    border-radius: 4px;
+  }
+  .link-btn:hover { text-decoration: underline; }
   .form-row { margin-bottom: 16px; }
   .form-row label {
     display: block;
@@ -1216,7 +1245,7 @@
     .app-title .logo { width: 44px; height: 44px; font-size: 24px; border-radius: 12px; }
     .app-subtitle { display: none; }
     .panel { padding: 22px 18px; }
-    .form-grid { grid-template-columns: 1fr; }
+    .form-grid, .form-grid.three { grid-template-columns: 1fr; }
     .check-header { padding: 18px; }
     .step-card { padding: 14px 14px; }
     .step-head { gap: 10px; }
@@ -1242,6 +1271,7 @@
     .card-delete,
     .note-toggle,
     .note-edit,
+    .link-btn,
     .step-check,
     .btn,
     .sidebar,
@@ -1337,10 +1367,24 @@ function normalizeIncident(raw) {
     }
     return out;
   };
-  const checked = {};
-  if (isPlainObject(raw.checkedSteps)) {
-    Object.keys(raw.checkedSteps).forEach(k => { if (raw.checkedSteps[k] === true) checked[k] = true; });
+  const pickTrue = obj => {
+    const out = {};
+    if (isPlainObject(obj)) Object.keys(obj).forEach(k => { if (obj[k] === true) out[k] = true; });
+    return out;
+  };
+  const pickDates = obj => {
+    const out = {};
+    if (isPlainObject(obj)) Object.keys(obj).forEach(k => { if (parseDate(obj[k])) out[k] = obj[k]; });
+    return out;
+  };
+  const extensions = {};
+  if (isPlainObject(raw.extensions)) {
+    Object.keys(raw.extensions).forEach(k => {
+      const n = raw.extensions[k];
+      if (Number.isInteger(n) && n > 0 && n <= 5) extensions[k] = n;
+    });
   }
+  const checked = pickTrue(raw.checkedSteps);
   const log = Array.isArray(raw.activityLog)
     ? raw.activityLog.filter(e => isPlainObject(e) && typeof e.content === "string" && typeof e.timestamp === "string")
         .map(e => ({
@@ -1355,7 +1399,11 @@ function normalizeIncident(raw) {
     type: typeof raw.type === "string" ? raw.type : "",
     name: typeof raw.name === "string" && raw.name.trim() ? raw.name : "（未命名案件）",
     incidentDate: raw.incidentDate,
+    reportDate: parseDate(raw.reportDate) ? raw.reportDate : null,   // 接獲檢舉／知悉日
     checkedSteps: checked,
+    completedDates: pickDates(raw.completedDates),                   // 各步驟實際完成日，作為後續期限的起算日
+    naSteps: pickTrue(raw.naSteps),                                   // 非必要步驟標為不適用
+    extensions: extensions,                                           // 已延長次數（如第43條調查期限）
     notes: pickStrings(raw.notes),
     assignees: pickStrings(raw.assignees),
     activityLog: log,
@@ -1459,34 +1507,63 @@ const INCIDENT_TYPES = {
     name: "生對生校園霸凌",
     icon: "🚨",
     color: "#c0392b",
-    desc: "校園霸凌防制準則 113 年版",
-    dayMode: "work",
+    desc: "校園霸凌防制準則（113.04.17 修正）",
+    // 依準則第17、25、27、34、43、46、49條：期限多半自「前一步實際完成日」起算，
+    // 而非事件發生日。due.from = "report"（接獲檢舉日）或前一步驟的 id；due: null 表示準則未定期限。
+    // 步驟 id 沿用舊版編號（舊案件的勾選、備注不受影響），畫面上的序號依陣列順序。
+    dayMode: "chain",
+    usesReportDate: true,
     steps: [
-      { id: 1, name: "即時保護措施（分開雙方、座位調整）", days: 0, required: true, law: "準則第38條，調查階段應採取保護措施" },
-      { id: 2, name: "通知雙方家長", days: 0, required: true, law: "準則第15條，未成年學生應通知法定代理人" },
-      { id: 3, name: "校安系統通報（24小時內）", days: 1, required: true, law: "校安通報作業要點，乙級事件24小時內通報" },
-      { id: 4, name: "召開審查小組會議", days: 3, required: true, law: "準則第24條，受理申請後3工作日內召開" },
-      { id: 5, name: "書面通知檢舉人受理與否", days: 20, required: true, law: "準則第25條，接獲檢舉起20工作日內書面通知" },
-      {
-        id: 6, name: "組成處理小組（3或5人，過半數外聘）", days: 5, required: true,
-        law: "準則第27條，審查小組決議受理後5工作日內",
-        composition: "3人或5人；至少過半數自生對生人才庫外聘；偏遠地區至少1/3外聘；防制委員會委員應迴避"
-      },
-      { id: 7, name: "處理小組第一次會議（分工、說明調查程序）", days: 7, required: true, law: "準則第28條，委員互推主持人並進行會前會" },
-      {
-        id: 8, name: "通知當事人所屬學校（如為跨校事件）", days: 7, required: false,
-        law: "準則第38條第3項",
-        crossSchoolNote: "當行為人或被行為人非本校學生，應通知其所屬學校辦理保護措施；對方學校不須派代表加入處理小組"
-      },
-      { id: 9, name: "完成調查或調和報告", days: 60, required: true, law: "準則第35條，得延長2次每次不逾1個月（第一次會議後2個月內完成）" },
-      { id: 10, name: "完成調和報告（走調和路線時）", days: 67, required: false, law: "準則第34條，調和成立後7工作日內" },
-      { id: 11, name: "提防制委員會審議", days: 65, required: true, law: "準則第35條、第43條，調查報告完成後儘速" },
-      { id: 12, name: "作成終局實體處理", days: 80, required: true, law: "準則第44條，防制委員會決議後15工作日" },
-      { id: 13, name: "書面通知雙方當事人（附調和/調查報告）", days: 90, required: true, law: "準則第44條第2項，終局處理後10工作日" },
-      { id: 14, name: "陳情/申訴期間追蹤（行為人30日可申訴；被行為人30日可陳情）", days: 120, required: true, law: "準則第46、49條，通知後30日持續追蹤" },
-      { id: 15, name: "執行輔導措施（行為人懲處+輔導；被行為人心理輔導）", days: 110, required: true, law: "準則第38條，終局處理後持續" },
-      { id: 16, name: "作成終局實體處理後陳報主管機關備查", days: 85, required: true, law: "準則第47條" },
-      { id: 17, name: "結案歸檔", days: 150, required: true, law: "準則第47條，處理情形及會議紀錄報主管機關備查" }
+      { id: 1, name: "即時保護措施、保全證據", due: { from: "report", add: 0, unit: "workday" }, required: true,
+        law: "第23條：應先行保全或初步調查與事件有關之證據；第38條第1項：得減低雙方互動、抽離或個別教學、暫時安置其他班級等" },
+      { id: 3, name: "通報學校權責人員及主管機關（校安通報）", due: { from: "report", add: 24, unit: "hour" }, required: true,
+        law: "第17條第1、2項：知悉後立即通報，至遲不得超過24小時；當事人、檢舉人等身分應保密" },
+      { id: 18, name: "視情節向社政主管機關通報", due: { from: "report", add: 24, unit: "hour" }, required: false,
+        law: "第17條第2項：應視事件情節，另依兒童及少年福利與權益保障法等規定向社政主管機關通報" },
+      { id: 2, name: "通知雙方家長、啟動關懷輔導", due: null, required: true,
+        law: "第19條第1項：接獲檢舉應對學生啟動關懷輔導。通知家長為實務作法，準則未定期限，宜儘速" },
+      { id: 19, name: "（非調查學校時）移送調查學校並通知當事人", due: { from: "report", add: 3, unit: "workday" }, required: false,
+        law: "第19條第1項：非調查學校應於3個工作日內移送調查學校並通知當事人；未成年者通知法定代理人或實際照顧者" },
+      { id: 4, name: "審查小組決議是否受理（完成日期＝受理決議日）", due: null, required: true,
+        law: "第24條：校長指派防制委員3人組成審查小組；第25條第1項：不受理須經審查小組委員全體一致同意" },
+      { id: 5, name: "書面通知檢舉人是否受理", due: { from: "report", add: 20, unit: "workday" }, required: true,
+        law: "第25條第4項：接獲檢舉之日起20個工作日內以書面通知；不受理應敘明理由" },
+      { id: 20, name: "（不受理時）追蹤檢舉人陳情期間", due: { from: 5, add: 30, unit: "day" }, required: false,
+        law: "第26條：檢舉人於收受不受理決定之次日起30日內，得向主管機關陳情，同一事件以一次為限（以書面通知完成日估算收受日）" },
+      { id: 6, name: "組成處理小組", due: { from: 4, add: 5, unit: "workday" }, required: true,
+        law: "第27條第1、2項：審查小組決議受理之日起5個工作日內組成",
+        composition: "3人或5人為原則；至少過半數委員自生對生人才庫外聘（偏遠地區至少1/3）；防制委員會委員可擔任處理小組委員，但防制委員會審議本案時應自行迴避（第37條）；有第10條情形者不得擔任" },
+      { id: 8, name: "（跨校事件）通知相關學校", due: null, required: false,
+        law: "第20條、第38條第3項",
+        crossSchoolNote: "行為人分屬不同學校：由先接獲檢舉之學校調查，相關學校應配合調查，並列席防制委員會會議（第20條第1項）。行為人已非本校教職員工生：以書面通知其現所屬學校配合調查，該校應派員列席防制委員會（第20條第2項）。當事人非本校學生：通知其所屬學校依第38條第1項採取處置（第38條第3項）。" },
+      { id: 7, name: "處理小組互推主持人、分工，進行會前會", due: null, required: true,
+        law: "第29條：提供調和或調查程序說明書及調和意願書；會前會不得錄音或錄影" },
+      { id: 22, name: "召開第一次調和或調查會議（完成日期＝報告期限起算日）", due: null, required: true,
+        law: "第30條（調和會議不得錄音錄影）、第33條；此日為第43條「2個月內完成報告」的起算日" },
+      { id: 21, name: "（調和程序）一個月內未成立應停止調和、改為調查", due: { from: 22, add: 1, unit: "month" }, required: false,
+        law: "第32條第3款：自第一次調和會議之日起一個月，調和仍未成立者，應停止調和、進行調查" },
+      { id: 23, name: "（調查程序）書面通知配合調查、訪談全程錄音錄影", due: null, required: false,
+        law: "第39條：訪談應全程錄音或錄影，通知當事人及檢舉人配合調查應以書面為之；第40條：錄音錄影至少保存3年" },
+      { id: 24, name: "（調和程序）調和成立、作成調和協議", due: null, required: false,
+        law: "第31條：調和成立應作成調和協議，雙方應受拘束" },
+      { id: 10, name: "（調和成立時）完成調和報告", due: { from: 24, add: 7, unit: "workday" }, required: false,
+        law: "第34條第1項：調和成立之日起7個工作日內完成調和報告，提防制委員會審議" },
+      { id: 9, name: "完成調和或調查報告", due: { from: 22, add: 2, unit: "month" }, maxExtensions: 2, required: true,
+        law: "第43條第1項：第一次調和或調查會議之日起2個月內完成；必要時得延長2次，每次不得逾1個月，學校應通知當事人" },
+      { id: 11, name: "防制委員會審議作成決議（完成日期＝決議日）", due: null, required: true,
+        law: "第34條第1項、第43條第2項：處理小組推派代表列席說明；第36條第4項：1/2以上委員出席、出席過半數同意；第37條：兼任處理小組委員者應迴避" },
+      { id: 15, name: "依決議啟動輔導機制", due: { from: 11, add: 0, unit: "workday" }, required: true,
+        law: "第58條：決議輔導行為人時應立即啟動，必要時訂輔導計畫並定期評估；第59條：曾參與調和、調查之委員應迴避同一事件輔導" },
+      { id: 12, name: "作成終局實體處理", due: { from: 11, add: 15, unit: "workday" }, required: true,
+        law: "第46條第1項（調和成立者為第35條第1項）：防制委員會決議之日起15個工作日內" },
+      { id: 13, name: "書面通知雙方處理結果（附報告、告知救濟途徑）", due: { from: 12, add: 10, unit: "workday" }, required: true,
+        law: "第46條第2至5項：載明事實及理由並附調和或調查報告；告知行為人救濟方法、被行為人陳情方法；未成年者通知法定代理人或實際照顧者。第47條：對外文書應以代號取代真實姓名" },
+      { id: 16, name: "陳報主管機關備查", due: null, required: true,
+        law: "第62條：處理情形、調和或調查報告、防制委員會及學校會議紀錄，報主管機關備查" },
+      { id: 14, name: "追蹤救濟期間", due: { from: 13, add: 30, unit: "day" }, required: true,
+        law: "第49條：被行為人等於收受終局實體處理之次日起30日內得陳情（一次為限）；第48條：行為人依學生申訴相關規定提起申訴，期間依各該規定（待確認）。以書面通知完成日估算收受日" },
+      { id: 17, name: "結案歸檔", due: null, required: true,
+        law: "第40條：錄音錄影至少保存3年，有救濟程序時保存至確定後至少6個月；第41條第3項：記載真實姓名之原始文書應封存" }
     ]
   },
   bullying_t2s: {
@@ -1604,36 +1681,84 @@ const INCIDENT_TYPES = {
   }
 };
 
+// 畫面上的步驟序號依陣列順序；step.id 只作為資料的鍵，不顯示
+Object.values(INCIDENT_TYPES).forEach(t => t.steps.forEach((s, i) => { s.no = i + 1; }));
+
 /* ==========================================================
    計算每步驟的截止日 / 狀態
 ========================================================== */
 
-function getStepDeadline(typeConf, step, incidentDateStr) {
-  const base = parseDate(incidentDateStr);
+// 加月數；遇到月底自動取該月最後一天（1/31 + 1 個月 → 2/28）
+function addMonths(base, months) {
+  const y = base.getFullYear(), m = base.getMonth() + months;
+  const last = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(base.getDate(), last));
+}
+
+const DUE_UNIT_LABEL = { workday: "工作日", day: "日", hour: "小時", month: "個月" };
+
+const isStepChecked = (incident, id) => !!(incident.checkedSteps && incident.checkedSteps[id]);
+const isStepNA = (incident, id) => !!(incident.naSteps && incident.naSteps[id]);
+const isStepSettled = (incident, id) => isStepChecked(incident, id) || isStepNA(incident, id);
+
+function findStep(typeConf, id) {
+  return typeConf.steps.find(s => s.id === id) || null;
+}
+
+/* 回傳下列其中一種：
+   { date, isHourBased, hours }          食物中毒等以事件當下起算的小時制
+   { date, unit, add, extended }         一般期限
+   { none: true }                        準則未定期限（儘速）
+   { waiting: true, anchor, missingDate } 起算的前一步尚未完成，或已勾選但未填完成日
+   null                                  日期資料無效 */
+function getStepDeadline(typeConf, step, incident) {
+  // 舊式設定：days / hours 都從事件發生日起算
+  if (step.due === undefined) {
+    const base = parseDate(incident.incidentDate);
+    if (!base) return null;
+    if (typeof step.hours !== "undefined") {
+      const d = new Date(base.getTime());
+      d.setMinutes(d.getMinutes() + step.hours * 60);
+      return { date: d, isHourBased: true, hours: step.hours };
+    }
+    if (typeConf.dayMode === "work") return { date: addWorkDays(base, step.days), unit: "workday" };
+    return { date: addCalendarDays(base, step.days), unit: "day" };
+  }
+
+  if (step.due === null) return { none: true };
+
+  const { from, add, unit } = step.due;
+  let base;
+  if (from === "report") {
+    base = parseDate(incident.reportDate || incident.incidentDate);
+  } else if (from === "incident") {
+    base = parseDate(incident.incidentDate);
+  } else {
+    const anchor = findStep(typeConf, from);
+    if (!anchor || !isStepChecked(incident, from)) return { waiting: true, anchor, missingDate: false };
+    base = parseDate(incident.completedDates && incident.completedDates[from]);
+    if (!base) return { waiting: true, anchor, missingDate: true };
+  }
   if (!base) return null;
 
-  // 食物中毒前 8 步（hours 屬性）→ 用小時表示，截止日 = 事件當天加上對應小時
-  if (typeof step.hours !== "undefined") {
-    const d = new Date(base.getTime());
-    d.setMinutes(d.getMinutes() + step.hours * 60);
-    return { date: d, isHourBased: true, hours: step.hours };
-  }
-
-  if (typeConf.dayMode === "work") {
-    return { date: addWorkDays(base, step.days), isHourBased: false };
-  }
-  // calendar 或 mixed 後段
-  return { date: addCalendarDays(base, step.days), isHourBased: false };
+  const extended = (step.maxExtensions && incident.extensions && incident.extensions[step.id]) || 0;
+  let date;
+  if (unit === "workday") date = addWorkDays(base, add);
+  else if (unit === "hour") date = addCalendarDays(base, Math.ceil(add / 24));   // 以日為單位追蹤：24 小時 → 次日
+  else if (unit === "month") date = addMonths(base, add + extended);
+  else date = addCalendarDays(base, add);
+  return { date, unit, add, extended };
 }
 
 function getStepStatus(typeConf, step, incident, today) {
-  const checked = !!(incident.checkedSteps && incident.checkedSteps[step.id]);
-  if (checked) return { key: "done", label: "已完成" };
+  if (isStepNA(incident, step.id)) return { key: "done", label: "不適用", na: true };
+  if (isStepChecked(incident, step.id)) return { key: "done", label: "已完成" };
   // 已結案案件不再計算逾期，未勾選者標示為「未完成」
   if (incident.status === "closed") return { key: "todo", label: "未完成" };
 
-  const ddl = getStepDeadline(typeConf, step, incident.incidentDate);
-  if (!ddl) return { key: "todo", label: "待辦" };
+  const ddl = getStepDeadline(typeConf, step, incident);
+  if (!ddl || ddl.none) return { key: "todo", label: "待辦" };
+  if (ddl.waiting) return { key: "todo", label: ddl.missingDate ? "待填起算日" : "待前一步", waiting: true };
 
   const diff = diffCalendarDays(today, ddl.date);
   if (diff < 0) return { key: "overdue", label: "逾期", days: diff };
@@ -1641,15 +1766,24 @@ function getStepStatus(typeConf, step, incident, today) {
   return { key: "todo", label: "待辦", days: diff };
 }
 
-function formatDeadline(typeConf, step, incidentDateStr) {
-  const ddl = getStepDeadline(typeConf, step, incidentDateStr);
+function formatDeadline(typeConf, step, incident) {
+  const ddl = getStepDeadline(typeConf, step, incident);
   if (!ddl) return "—";
+  if (ddl.none) return "儘速（準則未定期限）";
+  if (ddl.waiting) {
+    const ref = ddl.anchor ? `步驟 ${ddl.anchor.no} ` : "前一步";
+    const span = `+${step.due.add} ${DUE_UNIT_LABEL[step.due.unit]}`;
+    return ddl.missingDate
+      ? `請先填寫${ref}的完成日期（${span}）`
+      : `待${ref}完成後起算（${span}）`;
+  }
   if (ddl.isHourBased) {
     if (step.hours === 0) return "立即（事件當下）";
     if (step.hours < 1) return `${step.hours * 60} 分鐘內`;
     return `${step.hours} 小時內（${fmtDate(ddl.date)}）`;
   }
-  return fmtDate(ddl.date);
+  if (ddl.unit === "hour") return `${ddl.add} 小時內（至遲 ${fmtDate(ddl.date)}）`;
+  return fmtDate(ddl.date) + (ddl.extended ? `（已延長 ${ddl.extended} 次）` : "");
 }
 
 /* ==========================================================
@@ -1695,7 +1829,7 @@ function getMostUrgent(typeConf, incident, today) {
     if (!urgent) { urgent = step; urgentStatus = st; continue; }
     if (STATUS_ORDER[st.key] < STATUS_ORDER[urgentStatus.key]) {
       urgent = step; urgentStatus = st;
-    } else if (STATUS_ORDER[st.key] === STATUS_ORDER[urgentStatus.key] && (st.days ?? 0) < (urgentStatus.days ?? 0)) {
+    } else if (STATUS_ORDER[st.key] === STATUS_ORDER[urgentStatus.key] && (st.days ?? Infinity) < (urgentStatus.days ?? Infinity)) {
       urgent = step; urgentStatus = st;
     }
   }
@@ -1716,7 +1850,7 @@ function summarizeIncident(incident, today) {
   const typeConf = INCIDENT_TYPES[incident.type];
   if (!typeConf) return null;
   const total = typeConf.steps.length;
-  const done = typeConf.steps.filter(s => incident.checkedSteps && incident.checkedSteps[s.id]).length;
+  const done = typeConf.steps.filter(s => isStepSettled(incident, s.id)).length;
   const closed = incident.status === "closed";
   const { urgent, status } = closed ? { urgent: null, status: null } : getMostUrgent(typeConf, incident, today);
   let tone = "normal";
@@ -1727,7 +1861,7 @@ function summarizeIncident(incident, today) {
   return {
     typeConf, total, done, closed, urgent, status, tone,
     percent: total > 0 ? Math.round((done / total) * 100) : 0,
-    sortScore: bucket * 1000000 + (status?.days ?? 0)
+    sortScore: bucket * 1000000 + (status?.days ?? 99999)
   };
 }
 
@@ -1775,13 +1909,14 @@ function downloadBlob(blob, filename) {
 }
 
 function buildCaseCsv(incident, typeConf, today) {
-  const rows = [["步驟編號", "步驟名稱", "截止日期", "狀態", "負責人", "備注", "法規依據"]];
+  const rows = [["步驟編號", "步驟名稱", "截止日期", "狀態", "完成日期", "負責人", "備注", "法規依據"]];
   typeConf.steps.forEach(step => {
     rows.push([
-      step.id,
+      step.no,
       step.name,
-      formatDeadline(typeConf, step, incident.incidentDate),
+      formatDeadline(typeConf, step, incident),
       getStepStatus(typeConf, step, incident, today).label,
+      incident.completedDates?.[step.id] || "",
       incident.assignees?.[step.id] || "",
       (incident.notes?.[step.id] || "").replace(/\r?\n/g, " "),
       step.law || ""
@@ -2182,7 +2317,7 @@ function IncidentCard({ incident, summary, onOpen, onDelete }) {
           <div className="u-head">
             {status.key === "overdue" ? "⚠️ 已逾期" : status.key === "soon" ? "⏰ 即將到期" : "📌 下一步"}
           </div>
-          <div>步驟 {urgent.id}：{urgent.name}</div>
+          <div>步驟 {urgent.no}：{urgent.name}</div>
           {days && <div className="u-days">{days.text}</div>}
         </div>
       ) : null}
@@ -2198,16 +2333,24 @@ function NewIncidentView({ today, onCancel, onCreate }) {
   const [type, setType] = useState(null);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
+  const [reportDate, setReportDate] = useState("");
   const [touched, setTouched] = useState(false);
 
   const todayStr = toDateInputValue(today);
   const parsedDate = parseDate(date);
+  const usesReportDate = !!(type && INCIDENT_TYPES[type].usesReportDate);
   const errors = {
     type: !type ? "請選擇事件類型" : null,
     name: !name.trim() ? "請輸入案件名稱" : name.trim().length > NAME_MAX ? `案件名稱請勿超過 ${NAME_MAX} 字` : null,
     date: !date ? "請選擇事件發生日期"
       : !parsedDate ? "日期格式不正確"
       : date > todayStr ? "事件發生日期不可晚於今天"
+      : null,
+    reportDate: !usesReportDate ? null
+      : !reportDate ? "請選擇接獲檢舉／知悉日期"
+      : !parseDate(reportDate) ? "日期格式不正確"
+      : reportDate > todayStr ? "接獲檢舉日期不可晚於今天"
+      : date && reportDate < date ? "接獲檢舉日期不可早於事件發生日期"
       : null
   };
   const hasError = Object.values(errors).some(Boolean);
@@ -2222,7 +2365,11 @@ function NewIncidentView({ today, onCancel, onCreate }) {
       type,
       name: name.trim(),
       incidentDate: date,
+      reportDate: usesReportDate ? reportDate : null,
       checkedSteps: {},
+      completedDates: {},
+      naSteps: {},
+      extensions: {},
       notes: {},
       assignees: {},
       activityLog: [{ id: uuid(), timestamp: now, content: "🆕 案件建立", type: "auto" }],
@@ -2267,7 +2414,7 @@ function NewIncidentView({ today, onCancel, onCreate }) {
         <h2><span className="step-badge">2</span>輸入案件資訊</h2>
         <div className="step-hint">案件名稱僅供識別用途，建議使用代號（如 115-001），避免輸入學生姓名等可識別個資。</div>
 
-        <div className="form-grid">
+        <div className={"form-grid" + (usesReportDate ? " three" : "")}>
           <div className="form-row">
             <label htmlFor="case-name">案件名稱<span className="req">*</span></label>
             <input
@@ -2295,8 +2442,25 @@ function NewIncidentView({ today, onCancel, onCreate }) {
             />
             {touched && errors.date
               ? <div className="field-error">{errors.date}</div>
-              : <div className="field-help">所有期限皆由此日起算</div>}
+              : <div className="field-help">{usesReportDate ? "僅供紀錄，期限不由此日起算" : "所有期限皆由此日起算"}</div>}
           </div>
+          {usesReportDate && (
+            <div className="form-row">
+              <label htmlFor="case-report-date">接獲檢舉／知悉日期<span className="req">*</span></label>
+              <input
+                id="case-report-date"
+                type="date"
+                value={reportDate}
+                min={date || undefined}
+                max={todayStr}
+                aria-invalid={touched && !!errors.reportDate}
+                onChange={e => setReportDate(e.target.value)}
+              />
+              {touched && errors.reportDate
+                ? <div className="field-error">{errors.reportDate}</div>
+                : <div className="field-help">24 小時通報、20 工作日書面通知由此日起算</div>}
+            </div>
+          )}
         </div>
 
         <div className="form-actions">
@@ -2373,21 +2537,64 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
   const activeFilter = printing ? "all" : filter;
   const filtered = stepsWithStatus.filter(x => activeFilter === "all" || x.status.key === activeFilter);
 
+  const stepLabel = stepId => {
+    const s = findStep(typeConf, stepId);
+    return s ? `步驟${s.no}「${s.name}」` : `步驟（${stepId}）`;
+  };
+
+  // 勾選時記下完成日（預設今天，可修改），作為後續步驟期限的起算日
   const toggleCheck = (stepId) => {
-    if (isClosed) return;
+    if (isClosed || isStepNA(incident, stepId)) return;
     onUpdate(inc => {
       const next = { ...inc.checkedSteps };
-      const stepName = typeConf.steps.find(s => s.id === stepId)?.name || `步驟 ${stepId}`;
+      const dates = { ...(inc.completedDates || {}) };
       let logContent;
       if (next[stepId]) {
         delete next[stepId];
-        logContent = `↩️ 步驟${stepId}「${stepName}」取消完成`;
+        delete dates[stepId];
+        logContent = `↩️ ${stepLabel(stepId)}取消完成`;
       } else {
         next[stepId] = true;
-        logContent = `✅ 步驟${stepId}「${stepName}」已完成`;
+        dates[stepId] = toDateInputValue(new Date());
+        logContent = `✅ ${stepLabel(stepId)}已完成`;
       }
-      return appendLog({ ...inc, checkedSteps: next }, logContent, "auto");
+      return appendLog({ ...inc, checkedSteps: next, completedDates: dates }, logContent, "auto");
     });
+  };
+  const updateCompletedDate = (stepId, value) => {
+    if (isClosed || !parseDate(value) || value > toDateInputValue(new Date())) return;
+    onUpdate(inc => {
+      if (inc.completedDates?.[stepId] === value) return inc;
+      return appendLog(
+        { ...inc, completedDates: { ...(inc.completedDates || {}), [stepId]: value } },
+        `📅 ${stepLabel(stepId)}完成日期改為 ${fmtDate(parseDate(value))}`, "auto");
+    });
+  };
+  const toggleNA = (stepId) => {
+    if (isClosed) return;
+    onUpdate(inc => {
+      const na = { ...(inc.naSteps || {}) };
+      const wasNA = !!na[stepId];
+      if (wasNA) delete na[stepId]; else na[stepId] = true;
+      return appendLog({ ...inc, naSteps: na },
+        wasNA ? `↩️ ${stepLabel(stepId)}取消「不適用」` : `⊘ ${stepLabel(stepId)}標為不適用`, "auto");
+    });
+  };
+  const extendStep = (stepId) => {
+    const step = findStep(typeConf, stepId);
+    if (isClosed || !step || !step.maxExtensions) return;
+    onUpdate(inc => {
+      const n = (inc.extensions?.[stepId] || 0) + 1;
+      if (n > step.maxExtensions) return inc;
+      return appendLog({ ...inc, extensions: { ...(inc.extensions || {}), [stepId]: n } },
+        `⏩ ${stepLabel(stepId)}延長期限 1 個月（第 ${n} 次）— 請依第43條通知當事人`, "auto");
+    });
+    notify("已延長期限，請記得書面通知當事人");
+  };
+  const updateReportDate = (value) => {
+    if (isClosed || !parseDate(value) || value > toDateInputValue(new Date()) || value < incident.incidentDate) return;
+    onUpdate(inc => inc.reportDate === value ? inc
+      : appendLog({ ...inc, reportDate: value }, `📅 接獲檢舉日改為 ${fmtDate(parseDate(value))}`, "auto"));
   };
   const updateNote = (stepId, text) => {
     if (isClosed) return;
@@ -2423,9 +2630,7 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
   };
 
   const requestClose = () => {
-    const missing = typeConf.steps.filter(s =>
-      s.required && !(incident.checkedSteps && incident.checkedSteps[s.id])
-    );
+    const missing = typeConf.steps.filter(s => s.required && !isStepSettled(incident, s.id));
     setCloseModal({ missing });
   };
   const confirmClose = () => {
@@ -2498,7 +2703,31 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
         <h2>{incident.name}</h2>
         <div className="meta">
           事件發生日：{fmtDate(parseDate(incident.incidentDate))}　·
-          計算方式：{typeConf.dayMode === "work" ? "工作日（排除週六日）" : typeConf.dayMode === "mixed" ? "前段以小時計／後段日曆天" : "日曆天"}
+          {typeConf.usesReportDate && (
+            <>
+              <label htmlFor="report-date-edit">接獲檢舉日：</label>
+              {isClosed ? (
+                fmtDate(parseDate(incident.reportDate || incident.incidentDate))
+              ) : (
+                <input
+                  id="report-date-edit"
+                  type="date"
+                  className="date-inline"
+                  value={incident.reportDate || incident.incidentDate}
+                  min={incident.incidentDate}
+                  max={toDateInputValue(today)}
+                  onChange={e => updateReportDate(e.target.value)}
+                />
+              )}
+              {!incident.reportDate && <span style={{ color: "var(--c-soon-ink)" }}>（尚未填寫，暫以事件發生日計）</span>}
+              　·
+            </>
+          )}
+          計算方式：{
+            typeConf.dayMode === "chain" ? "依準則，多數期限自前一步實際完成日起算（工作日排除週六日）"
+            : typeConf.dayMode === "work" ? "工作日（排除週六日）"
+            : typeConf.dayMode === "mixed" ? "前段以小時計／後段日曆天" : "日曆天"
+          }
           <span className="print-only">列印日期：{fmtDate(new Date())}　·　法規依據：{typeConf.desc}</span>
         </div>
       </section>
@@ -2615,21 +2844,36 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
           <button className="btn btn-secondary" style={{ marginTop: 14 }} onClick={() => setFilter("all")}>顯示全部步驟</button>
         </div>
       ) : (
-        filtered.map(({ step, status }) => (
-          <StepCard
-            key={step.id}
-            step={step}
-            status={status}
-            deadlineText={formatDeadline(typeConf, step, incident.incidentDate)}
-            note={incident.notes?.[step.id] || ""}
-            assignee={incident.assignees?.[step.id] || ""}
-            checked={!!incident.checkedSteps?.[step.id]}
-            readOnly={isClosed}
-            onToggle={() => toggleCheck(step.id)}
-            onNoteChange={(text) => updateNote(step.id, text)}
-            onAssigneeChange={(v) => updateAssignee(step.id, v)}
-          />
-        ))
+        filtered.map(({ step, status }) => {
+          const extended = incident.extensions?.[step.id] || 0;
+          const ddl = step.maxExtensions ? getStepDeadline(typeConf, step, incident) : null;
+          return (
+            <StepCard
+              key={step.id}
+              step={step}
+              status={status}
+              deadlineText={formatDeadline(typeConf, step, incident)}
+              note={incident.notes?.[step.id] || ""}
+              assignee={incident.assignees?.[step.id] || ""}
+              checked={isStepChecked(incident, step.id)}
+              na={isStepNA(incident, step.id)}
+              completedDate={incident.completedDates?.[step.id] || ""}
+              maxDate={toDateInputValue(today)}
+              extension={step.maxExtensions ? {
+                used: extended,
+                max: step.maxExtensions,
+                available: !!(ddl && ddl.date) && status.key !== "done" && extended < step.maxExtensions
+              } : null}
+              readOnly={isClosed}
+              onToggle={() => toggleCheck(step.id)}
+              onToggleNA={() => toggleNA(step.id)}
+              onCompletedDateChange={(v) => updateCompletedDate(step.id, v)}
+              onExtend={() => extendStep(step.id)}
+              onNoteChange={(text) => updateNote(step.id, text)}
+              onAssigneeChange={(v) => updateAssignee(step.id, v)}
+            />
+          );
+        })
       )}
 
       <div className="fab" ref={fabRef}>
@@ -2686,7 +2930,10 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
 
 const ASSIGNEE_OPTIONS = ["學務主任", "生教組", "輔導室", "導師", "其他"];
 
-function StepCard({ step, status, deadlineText, note, assignee, checked, readOnly, onToggle, onNoteChange, onAssigneeChange }) {
+function StepCard({
+  step, status, deadlineText, note, assignee, checked, na, completedDate, maxDate, extension, readOnly,
+  onToggle, onToggleNA, onCompletedDateChange, onExtend, onNoteChange, onAssigneeChange
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note);
 
@@ -2713,15 +2960,15 @@ function StepCard({ step, status, deadlineText, note, assignee, checked, readOnl
           type="button"
           role="checkbox"
           aria-checked={checked}
-          aria-label={`步驟 ${step.id}：${step.name}`}
+          aria-label={`步驟 ${step.no}：${step.name}`}
           className={"step-check" + (checked ? " checked" : "")}
           onClick={onToggle}
-          disabled={readOnly}
-          title={readOnly ? "案件已結案，無法修改" : (checked ? "點擊取消完成" : "點擊標記為完成")}
-        >{checked ? "✓" : ""}</button>
+          disabled={readOnly || na}
+          title={readOnly ? "案件已結案，無法修改" : na ? "已標為不適用" : (checked ? "點擊取消完成" : "點擊標記為完成")}
+        >{checked ? "✓" : na ? "—" : ""}</button>
         <div className="step-body">
           <div className="step-title-row">
-            <span className="step-num">{step.id}</span>
+            <span className="step-num">{step.no}</span>
             <span className="step-title">{step.name}</span>
             {step.required && <span className="req-tag">必要</span>}
             <span className={statusTagCls}>{status.label}</span>
@@ -2732,6 +2979,41 @@ function StepCard({ step, status, deadlineText, note, assignee, checked, readOnl
             <strong>截止：</strong>{deadlineText}
             {dayHint && <span className={"days " + dayHint.tone}>{dayHint.text}</span>}
           </div>
+
+          {(checked || (!step.required && !checked && !readOnly) || (extension && (extension.used > 0 || extension.available))) && (
+            <div className="step-actions-row">
+              {checked && (
+                <span>
+                  <label htmlFor={`done-date-${step.id}`}>完成日期：</label>
+                  {readOnly ? (
+                    fmtDate(parseDate(completedDate)) || "（未填）"
+                  ) : (
+                    <input
+                      id={`done-date-${step.id}`}
+                      type="date"
+                      className="date-inline"
+                      value={completedDate}
+                      max={maxDate}
+                      aria-invalid={!completedDate}
+                      onChange={e => onCompletedDateChange(e.target.value)}
+                    />
+                  )}
+                  {!completedDate && !readOnly && <span style={{ color: "var(--c-soon-ink)", marginLeft: 6 }}>請填寫，後續期限由此起算</span>}
+                </span>
+              )}
+              {!step.required && !checked && !readOnly && (
+                <button type="button" className="link-btn" onClick={onToggleNA}>
+                  {na ? "↩️ 取消不適用" : "⊘ 本案不適用"}
+                </button>
+              )}
+              {extension && extension.used > 0 && <span>已延長 {extension.used} / {extension.max} 次</span>}
+              {extension && extension.available && !readOnly && (
+                <button type="button" className="link-btn" onClick={onExtend}>
+                  ⏩ 延長 1 個月（尚可 {extension.max - extension.used} 次）
+                </button>
+              )}
+            </div>
+          )}
 
           {step.law && <div className="step-law">📖 {step.law}</div>}
 
@@ -2776,7 +3058,7 @@ function StepCard({ step, status, deadlineText, note, assignee, checked, readOnl
                 <textarea
                   value={draft}
                   maxLength={NOTE_MAX}
-                  aria-label={`步驟 ${step.id} 備注`}
+                  aria-label={`步驟 ${step.no} 備注`}
                   onChange={e => setDraft(e.target.value)}
                   onKeyDown={onNoteKey}
                   placeholder="輸入處理紀錄、會議結果、聯繫對象等備注…（Ctrl/⌘ + Enter 儲存，Esc 取消）"
@@ -2864,7 +3146,7 @@ function CloseCaseModal({ missing, onCancel, onConfirm }) {
       </p>
       {hasMissing && (
         <ul className="missing-list">
-          {missing.map(s => <li key={s.id}>步驟 {s.id}：{s.name}</li>)}
+          {missing.map(s => <li key={s.id}>步驟 {s.no}：{s.name}</li>)}
         </ul>
       )}
       <div className="modal-actions">
@@ -3080,9 +3362,43 @@ function runSelfTests() {
 
   // 食物中毒小時制
   const fp = INCIDENT_TYPES.food_poison;
-  eq("立即", formatDeadline(fp, fp.steps[0], "2026-10-22"), "立即（事件當下）");
-  eq("15 分鐘", formatDeadline(fp, fp.steps[2], "2026-10-22"), "15 分鐘內");
-  eq("2 小時", formatDeadline(fp, fp.steps[5], "2026-10-22"), "2 小時內（2026/10/22）");
+  const fpInc = { incidentDate: "2026-10-22", checkedSteps: {} };
+  eq("立即", formatDeadline(fp, fp.steps[0], fpInc), "立即（事件當下）");
+  eq("15 分鐘", formatDeadline(fp, fp.steps[2], fpInc), "15 分鐘內");
+  eq("2 小時", formatDeadline(fp, fp.steps[5], fpInc), "2 小時內（2026/10/22）");
+
+  // 生對生霸凌：依準則串接起算日（週五 11/06 接獲檢舉）
+  const s2 = INCIDENT_TYPES.bullying_s2s;
+  const st = id => findStep(s2, id);
+  const ddlOf = (id, inc) => { const r = getStepDeadline(s2, st(id), inc); return r && r.date ? toDateInputValue(r.date) : r; };
+  const b = { id: "s", type: "bullying_s2s", incidentDate: "2026-11-02", reportDate: "2026-11-06", checkedSteps: {}, completedDates: {}, naSteps: {}, extensions: {}, status: "active" };
+  eq("月份加法遇月底", ymd(addMonths(d("2027-01-31"), 1)), "2027-02-28");
+  eq("24 小時通報以接獲檢舉日起算（週五→週六）", ddlOf(3, b), "2026-11-07");
+  eq("24 小時通報顯示", formatDeadline(s2, st(3), b), "24 小時內（至遲 2026/11/07）");
+  eq("書面通知受理與否：接獲檢舉 + 20 工作日", ddlOf(5, b), "2026-12-04");
+  eq("舊案件未填接獲檢舉日 → 以事件發生日計", ddlOf(5, { ...b, reportDate: null }), "2026-11-30");
+  eq("組成處理小組：受理決議前顯示待前一步", getStepStatus(s2, st(6), b, d("2026-12-20")), { key: "todo", label: "待前一步", waiting: true });
+  eq("待前一步文字", formatDeadline(s2, st(6), b), "待步驟 6 完成後起算（+5 工作日）");
+  const decided = { ...b, checkedSteps: { 4: true }, completedDates: { 4: "2026-12-04" } };
+  eq("組成處理小組：受理決議日 + 5 工作日", ddlOf(6, decided), "2026-12-11");
+  eq("已勾選但未填完成日 → 待填起算日", getStepStatus(s2, st(6), { ...b, checkedSteps: { 4: true } }, today).label, "待填起算日");
+  const met = { ...b, checkedSteps: { 22: true }, completedDates: { 22: "2026-12-11" } };
+  eq("報告期限：第一次會議 + 2 個月", ddlOf(9, met), "2027-02-11");
+  eq("延長一次 → + 3 個月", ddlOf(9, { ...met, extensions: { 9: 1 } }), "2027-03-11");
+  eq("延長顯示", formatDeadline(s2, st(9), { ...met, extensions: { 9: 2 } }), "2027/04/11（已延長 2 次）");
+  eq("調和一個月未成立", ddlOf(21, met), "2027-01-11");
+  const ruled = { ...b, checkedSteps: { 11: true }, completedDates: { 11: "2027-02-11" } };
+  eq("終局實體處理：決議 + 15 工作日", ddlOf(12, ruled), "2027-03-04");
+  eq("書面通知：終局 + 10 工作日", ddlOf(13, { ...b, checkedSteps: { 12: true }, completedDates: { 12: "2027-03-04" } }), "2027-03-18");
+  eq("救濟期間：通知 + 30 日", ddlOf(14, { ...b, checkedSteps: { 13: true }, completedDates: { 13: "2027-03-18" } }), "2027-04-17");
+  eq("未定期限 → 不計逾期", getStepStatus(s2, st(4), b, d("2027-12-31")), { key: "todo", label: "待辦" });
+  eq("未定期限顯示", formatDeadline(s2, st(4), b), "儘速（準則未定期限）");
+  eq("不適用 → 視同完成", getStepStatus(s2, st(19), { ...b, naSteps: { 19: true } }, today), { key: "done", label: "不適用", na: true });
+  eq("不適用計入完成數", summarizeIncident({ ...b, naSteps: { 19: true }, checkedSteps: { 1: true } }, today).done, 2);
+  eq("序號依流程順序", s2.steps.map(s => s.no).join(","), s2.steps.map((_, i) => i + 1).join(","));
+  eq("步驟 id 不重複", new Set(s2.steps.map(s => s.id)).size, s2.steps.length);
+  eq("起算步驟都存在且排在前面", s2.steps.every(s => !s.due || typeof s.due.from !== "number"
+    || (findStep(s2, s.due.from) && findStep(s2, s.due.from).no < s.no)), true);
 
   // 剩餘天數文字
   eq("已逾文字", describeDays(-2), { text: "已逾 2 天", tone: "overdue" });
