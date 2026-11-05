@@ -1718,7 +1718,7 @@ const INCIDENT_TYPES = {
     steps: [
       { id: 2, name: "聯繫家長、瞭解未到校原因", due: null, required: true,
         law: "實務作法：學生未到校即應聯繫家長；法規未定時限" },
-      { id: 1, name: "認定中輟（未請假或不明原因連續3日未到校；完成日期＝認定日）", due: { from: "incident", add: 2, unit: "workday" }, required: true,
+      { id: 1, name: "認定中輟（未請假或不明原因連續3日未到校；完成日期＝認定日）", due: { from: "incident", add: 3, unit: "workday", startDay: true }, required: true,
         law: "中輟辦法第2條第1項第2款、臺北市實施要點第2點：未經請假、請假未獲准或不明原因未到校上課連續達3日以上（本系統以首次未到校日起第3個上課日計）；強迫入學條例第8條之1" },
       { id: 3, name: "即時上網通報（全國中輟生通報及復學系統）", due: { from: 1, add: 0, unit: "workday" }, required: true,
         law: "臺北市實施要點第5點：學校應即時上網通報；中輟辦法第3條第2項第1款：通報並傳送學生檔案資料列管（交換至警政署協尋）" },
@@ -1816,6 +1816,16 @@ function addMonths(base, months) {
   return new Date(y, m, Math.min(base.getDate(), last));
 }
 
+// 行政程序法第48條第3項：以月定期間，以最後之月與起算日相當日之前一日為末日；
+// 最後之月無相當日者，以其月之末日為末日。inclusive＝即日起算（起算日即第1日），否則自次日起算
+function addMonthsPeriod(base, months, inclusive) {
+  const first = inclusive ? base : addCalendarDays(base, 1);
+  const y = first.getFullYear(), m = first.getMonth() + months;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  if (first.getDate() > lastDay) return new Date(y, m, lastDay);
+  return addCalendarDays(new Date(y, m, first.getDate()), -1);
+}
+
 const DUE_UNIT_LABEL = { workday: "工作日", day: "日", hour: "小時", month: "個月" };
 
 const isStepChecked = (incident, id) => !!(incident.checkedSteps && incident.checkedSteps[id]);
@@ -1869,7 +1879,7 @@ function getStepDeadline(typeConf, step, incident) {
   let date;
   if (unit === "workday") date = addWorkDays(base, startDay && isWorkday(base) ? add - 1 : add);
   else if (unit === "hour") date = addCalendarDays(base, Math.ceil(add / 24));   // 以日為單位追蹤：24 小時 → 次日
-  else if (unit === "month") date = addCalendarDays(addMonths(base, add + extended), startDay ? -1 : 0);
+  else if (unit === "month") date = addMonthsPeriod(base, add + extended, startDay);
   else date = addCalendarDays(base, startDay ? add - 1 : add);
   return { date, unit, add, extended, startDay };
 }
@@ -3540,6 +3550,9 @@ function runSelfTests() {
   eq("延長一次 → 3 個月", ddlOf(9, { ...met, extensions: { 9: 1 } }), "2027-03-10");
   eq("延長顯示", formatDeadline(s2, st(9), { ...met, extensions: { 9: 2 } }), "2027/04/10（已延長 2 次）（起算當日計入）");
   eq("調和一個月未成立", ddlOf(21, met), "2027-01-10");
+  eq("月底：1/29 起一個月（即日起算）→ 2 月無相當日，以 2/28 為末日", ddlOf(21, { ...b, checkedSteps: { 22: true }, completedDates: { 22: "2027-01-29" } }), "2027-02-28");
+  eq("月底：11/30 後二個月（始日不計）→ 1/31", toDateInputValue(getStepDeadline(conf, gs(8), gDone(19, "2026-11-30")).date), "2027-01-31");
+  eq("中輟：首次未到校日誤填週日 → 自週一起算第 3 個上課日", toDateInputValue(getStepDeadline(dr, findStep(dr, 1), { ...db, incidentDate: "2026-11-01" }).date), "2026-11-04");
   const ruled = { ...b, checkedSteps: { 11: true }, completedDates: { 11: "2027-02-11" } };
   eq("終局實體處理：決議當日起 15 工作日", ddlOf(12, ruled), "2027-03-03");
   eq("書面通知：終局 + 10 工作日", ddlOf(13, { ...b, checkedSteps: { 12: true }, completedDates: { 12: "2027-03-04" } }), "2027-03-18");
