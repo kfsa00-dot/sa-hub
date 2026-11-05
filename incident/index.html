@@ -1524,8 +1524,8 @@ const INCIDENT_TYPES = {
         law: "第19條第1項：接獲檢舉應對學生啟動關懷輔導。通知家長為實務作法，準則未定期限，宜儘速" },
       { id: 19, name: "（非調查學校時）移送調查學校並通知當事人", due: { from: "report", add: 3, unit: "workday" }, required: false,
         law: "第19條第1項：非調查學校應於3個工作日內移送調查學校並通知當事人；未成年者通知法定代理人或實際照顧者" },
-      { id: 4, name: "審查小組決議是否受理（完成日期＝受理決議日）", due: null, required: true,
-        law: "第24條：校長指派防制委員3人組成審查小組；第25條第1項：不受理須經審查小組委員全體一致同意" },
+      { id: 4, name: "召開審查小組會議、決議是否受理（完成日期＝受理決議日）", due: { from: "report", add: 20, unit: "workday" }, required: true,
+        law: "第24條：校長指派防制委員3人組成審查小組；第25條第1項：不受理須經審查小組委員全體一致同意。準則未單獨規定開會期限，但第25條第4項須於接獲檢舉之日起20個工作日內書面通知是否受理，故審查小組至遲應於此期限內決議" },
       { id: 5, name: "書面通知檢舉人是否受理", due: { from: "report", add: 20, unit: "workday" }, required: true,
         law: "第25條第4項：接獲檢舉之日起20個工作日內以書面通知；不受理應敘明理由" },
       { id: 20, name: "（不受理時）追蹤檢舉人陳情期間", due: { from: 5, add: 30, unit: "day" }, required: false,
@@ -1570,113 +1570,234 @@ const INCIDENT_TYPES = {
     name: "師對生霸凌",
     icon: "👨‍🏫",
     color: "#1a5276",
-    desc: "教師解聘不續聘停聘或資遣辦法 113 年版",
-    dayMode: "work",
+    desc: "教師解聘不續聘停聘或資遣辦法（115.10.07 修正）",
+    // 高級中等以下學校教師解聘不續聘停聘或資遣辦法：期限多自前一步實際完成日起算；「日」為日曆天
+    dayMode: "chain",
+    usesReportDate: true,
+    reportDateLabel: "接獲檢舉／知悉日期",
     steps: [
-      { id: 1, name: "即時安置被害學生（調整班級、座位，保護措施）", days: 0, required: true, law: "解聘辦法第8條，應即蒐集保全證據及採取保護措施" },
-      { id: 2, name: "通知被害學生家長", days: 0, required: true, law: "未成年應通知法定代理人" },
-      { id: 3, name: "陳報校長", days: 0, required: true, law: "校內通報程序" },
-      { id: 4, name: "校安系統通報（24小時內）", days: 1, required: true, law: "校安通報作業要點" },
-      { id: 5, name: "通知教育局", days: 3, required: true, law: "主管機關監督機制" },
-      {
-        id: 6, name: "受理審查：校長召開會議（外聘人才庫委員+教師代表+家長代表共4人，無記名投票）",
-        days: 7, required: true,
-        law: "解聘辦法第9條，校長邀集4人無記名投票，校長不投票",
-        composition: "外聘人才庫專業人員1人+教師代表1人+家長代表1人+1人=共4人；無記名投票；校長主持但不投票"
-      },
-      { id: 7, name: "書面通知當事人受理與否", days: 20, required: true, law: "解聘辦法第9條" },
-      {
-        id: 8, name: "組成調查小組（全部外聘，主管機關推薦名單）", days: 25, required: true,
-        law: "解聘辦法第16條，全部外聘，由主管機關推薦3至5倍人數供學校挑選",
-        composition: "全部外聘；人數3至5人；主管機關提供3至5倍人數名單供選；校事會議委員不得擔任調查小組委員"
-      },
-      { id: 9, name: "調查小組進行調查（訪談、蒐證，應全程錄音錄影）", days: 40, required: true, law: "解聘辦法第19條，訪談應全程錄音錄影" },
-      { id: 10, name: "完成調查報告，提校事會議審議", days: 60, required: true, law: "解聘辦法第22條，受理後2個月內完成" },
-      { id: 11, name: "校事會議審議作成決議", days: 70, required: true, law: "解聘辦法第24條" },
-      { id: 12, name: "報主管機關（教育局）審查", days: 75, required: true, law: "解聘辦法第52條，解聘/不續聘/終局停聘須送審議委員會" },
-      { id: 13, name: "書面通知當事人結果及救濟途徑", days: 85, required: true, law: "解聘辦法相關通知規定，終局處理後10工作日" },
-      { id: 14, name: "執行懲處（送考績會或依解聘辦法懲處）", days: 90, required: true, law: "解聘辦法第24條，決議後15工作日" },
-      { id: 15, name: "被害學生輔導措施（心理諮商等）", days: 95, required: true, law: "解聘辦法第24條，應提供心理諮商與輔導" },
-      { id: 16, name: "追蹤被害學生輔導成效", days: 120, required: true, law: "友善校園精神" },
-      { id: 17, name: "結案歸檔陳報", days: 150, required: true, law: "解聘辦法第47條，報主管機關備查" }
+      { id: 1, name: "保護被害學生（減低互動、抽離或暫時安置其他班級）", due: { from: "report", add: 0, unit: "workday" }, required: true,
+        law: "第11條第1項：必要時得彈性處理出缺席及成績評量、減低雙方互動、抽離或個別教學、暫時安置其他班級；第11條第2項：被害人非本校學生時，應通知其所屬學校" },
+      { id: 18, name: "蒐集、保全與事件有關之證據資料", due: { from: "report", add: 0, unit: "workday" }, required: true,
+        law: "第8條第3項：接獲檢舉後，應即由學校先行蒐集或保全證據、資料" },
+      { id: 3, name: "知悉者立即通報學校權責人員、陳報校長", due: { from: "report", add: 0, unit: "workday" }, required: true,
+        law: "第7條第1項：校長、教師、職員或工友知悉時，均應立即向學校所定權責人員通報；通報應保密當事人身分（第7條第3項）" },
+      { id: 4, name: "校安通報網通報", due: { from: "report", add: 24, unit: "hour" }, required: true,
+        law: "第7條第1、2項：由權責人員向主管機關通報，依法令所定時限為之；校園安全及災害事件通報作業要點（112.11.30）第6點：依法規通報事件至遲不得逾24小時" },
+      { id: 5, name: "通報主管機關（教育局）", due: { from: "report", add: 24, unit: "hour" }, required: true,
+        law: "第7條第1項：由學校權責人員向學校所屬主管機關通報" },
+      { id: 19, name: "視情節向社政主管機關通報", due: { from: "report", add: 24, unit: "hour" }, required: false,
+        law: "第7條第2項；兒童及少年福利與權益保障法第53條第1項：知悉後至遲不得超過24小時" },
+      { id: 2, name: "通知被害學生家長（法定代理人或實際照顧者）", due: null, required: true,
+        law: "第6條第1項、第48條：程序中應通知未成年被害人之法定代理人或實際照顧者；辦法未定立即通知之時限，宜儘速" },
+      { id: 20, name: "（非調查學校時）移送調查學校並通知當事人", due: { from: "report", add: 3, unit: "workday" }, required: false,
+        law: "第6條第1項：非調查學校應於3個工作日內移送調查學校，並通知當事人；被害人未成年者並通知法定代理人或實際照顧者" },
+      { id: 21, name: "（教師行為顯屬不予處罰或符合輔導管教辦法時）結案並書面通知檢舉人", due: { from: "report", add: 20, unit: "day" }, required: false,
+        law: "第8條第1、2項：應予結案，並於接獲檢舉之日起20日內以書面敘明理由通知檢舉人；檢舉人得依第10條陳情" },
+      { id: 6, name: "校長召開受理審查會議、決議是否受理（完成日期＝受理決議日）", due: { from: "report", add: 20, unit: "day" }, required: true,
+        law: "第9條第1項：無記名投票，過半數同意認定有不受理事由者不予受理。辦法未單獨規定開會期限，但第9條第3項須於接獲檢舉之日起20日內書面通知，故至遲應於此期限內決議",
+        composition: "外聘調查人才庫專業人員1人＋校事會議委員之教師代表1人＋家長代表1人，共3人投票；校長召開並主持，僅得表示意見、無表決權；委員迴避依第59條（行政程序法第32、33條）" },
+      { id: 7, name: "書面通知檢舉人是否受理", due: { from: "report", add: 20, unit: "day" }, required: true,
+        law: "第9條第3項：接獲檢舉之日起20日內以書面通知；不受理者應敘明理由" },
+      { id: 22, name: "（不受理時）追蹤檢舉人陳情期間", due: { from: 7, add: 30, unit: "day" }, required: false,
+        law: "第10條：檢舉人於收受不受理決定之次日起30日內，得向主管機關陳情，同一案件以一次為限（以書面通知完成日估算收受日）" },
+      { id: 23, name: "（涉教師成績考核辦法懲處時）改依考核辦法處理", due: null, required: false,
+        law: "第9條之1、第13條第2項：認定涉及公立高級中等以下學校教師成績考核辦法所定懲處情形者，適用或準用該辦法" },
+      { id: 24, name: "召開校事會議審議", due: { from: 6, add: 7, unit: "workday" }, required: true,
+        law: "第12條第1項：受理檢舉事件後7個工作日內召開校事會議",
+        composition: "委員5人：校長、家長會代表、行政人員代表、教師會代表（無教師會者由未兼行政之教師代表等擔任）、教育／法律／兒少福利學者專家或社會公正人士各1人；任一性別不得少於1/3（第12條第2、3項）" },
+      { id: 8, name: "校事會議組成調查小組（全部外聘）", due: null, required: true,
+        law: "第13條第1項、第16條、第18條",
+        composition: "主管機關從調查人才庫推舉3至5倍學者專家，學校遴選3人或5人，全部外聘；應含法律專家學者至少1人（偏遠地區學校除外）；校事會議委員不得同時擔任調查小組委員（第18條）；當事人受訪時得有輔佐人，至多2人" },
+      { id: 25, name: "（必要時）暫時停聘行為人或調整課務", due: null, required: false,
+        law: "第11條第1項第3、4款：依教師法第22條第2、3項暫時停聘靜候調查，或依校事會議決議調整課務、行政兼職" },
+      { id: 26, name: "調查小組第一次會議（完成日期＝報告期限起算日）", due: null, required: true,
+        law: "第21條第1項：此日為「2個月內完成調查報告」的起算日" },
+      { id: 9, name: "調查訪談（全程錄音錄影、書面通知配合調查）", due: null, required: true,
+        law: "第19條：訪談應全程錄音或錄影，受訪者不得自行錄音錄影；通知當事人及檢舉人配合調查應以書面記載原因、目的、時間、地點及不配合之效果；學生受訪應保密；第23條：錄音錄影至少保存3年" },
+      { id: 10, name: "完成調查報告", due: { from: 26, add: 2, unit: "month" }, maxExtensions: 2, required: true,
+        law: "第21條第1項：調查小組第一次會議之日起2個月內完成；必要時得延長2次，每次不得逾1個月，學校應通知當事人" },
+      { id: 11, name: "校事會議審議調查報告、作成決議（完成日期＝決議日）", due: null, required: true,
+        law: "第22條第1項（調查小組推派代表列席）、第24條（1/2以上出席、出席過半數通過）、第25條（移送教評會、自行輔導、移送考核會或結案等決議）" },
+      { id: 27, name: "（決議移送教評會時）提教評會審議", due: { from: 11, add: 10, unit: "day" }, required: false,
+        law: "第35條第2項、第38條、第40條、第41條：自校事會議調查確認或決議之日起10日內提教評會；行為人陳述意見時，學校至遲於7日前提供調查報告（第43條）" },
+      { id: 29, name: "（移送教評會時）教評會審議通過（完成日期＝通過日）", due: null, required: false,
+        law: "第35條至第41條" },
+      { id: 12, name: "（教評會通過解聘、不續聘或終局停聘時）報主管機關核准", due: { from: 29, add: 10, unit: "day" }, required: false,
+        law: "第35條至第41條：教評會審議通過之日起10日內報主管機關，核准後予以解聘、不續聘或終局停聘" },
+      { id: 30, name: "（決議自行輔導時）輔導小組第一次會議（完成日期＝輔導期間起算日）", due: null, required: false,
+        law: "第25條第1項第4款、第27條：組成輔導小組3人或5人為原則，應含輔導人才庫輔導員至少1人（偏遠地區除外）" },
+      { id: 31, name: "（自行輔導時）完成輔導報告提校事會議", due: { from: 30, add: 2, unit: "month" }, maxExtensions: 1, required: false,
+        law: "第28條第1款：輔導期間以2個月為原則，自輔導小組第一次會議起算，必要時得延長，延長不得逾1個月並應通知教師；第29條：輔導報告提校事會議審議" },
+      { id: 14, name: "（決議移送考核會時）考核會審議懲處", due: null, required: false,
+        law: "第25條第1項第5款：情節未達解聘、不續聘或終局停聘者，移送考核會或依法組成之相關委員會審議" },
+      { id: 32, name: "作成終局實體處理（須報核准者以核准日為準；完成日期＝通知期限起算日）", due: null, required: true,
+        law: "第47條、第48條第1項" },
+      { id: 13, name: "書面通知處理結果（附調查報告、告知救濟及陳情途徑）", due: { from: 32, add: 10, unit: "day" }, required: true,
+        law: "第47條：免報核准者，終局實體處理後10日內書面通知行為人並載明救濟方法；第48條：須報核准者，核准之日起10日內通知行為人及被害人並提供調查報告、告知陳情方法；對外提供之調查報告應以代號取代真實姓名（第48條第5項）" },
+      { id: 15, name: "被害學生輔導與協助", due: null, required: true,
+        law: "第11條第1項：於調查處理階段或作成終局處理後，必要時提供課業協助、減低互動、個別教學輔導等處置" },
+      { id: 33, name: "（解聘以外之終局處理）安排行為人心理輔導或3至12小時課程", due: null, required: false,
+        law: "第45條：得附帶安排心理輔導，或協助接受3小時以上12小時以下之輔導管教、情緒管理等課程，並以書面通知實施方式及期間" },
+      { id: 16, name: "追蹤被害人陳情期間", due: { from: 13, add: 30, unit: "day" }, required: true,
+        law: "第50條：被害人等於收受終局實體處理之次日起30日內得向主管機關陳情，同一案件以一次為限；行為人依第47條、第49條提起行政爭訟（以書面通知完成日估算收受日）" },
+      { id: 17, name: "結案歸檔", due: null, required: true,
+        law: "第23條：錄音錄影等資料至少保存3年，有救濟程序時保存至確定後至少6個月；第20條第3項：記載真實姓名之原始文書應封存" }
     ]
   },
   gender: {
     name: "性別平等教育事件",
     icon: "⚖️",
     color: "#7d3c98",
-    desc: "性別平等教育法",
-    dayMode: "calendar",
+    desc: "性別平等教育法（112.08.16）、校園性別事件防治準則（113.03.06）",
+    // 性平法之「日」為日曆天；調查期限自受理起算，議處期限自學校接獲調查報告起算
+    dayMode: "chain",
+    usesReportDate: true,
+    reportDateLabel: "接獲申請調查／檢舉（知悉）日期",
     steps: [
-      { id: 1, name: "法定通報（性平法第22條，知悉後24小時內）", days: 0, required: true, law: "性平法第22條，知悉後至遲不得超過24小時通報" },
-      { id: 2, name: "即時安全措施（調整座位、課表）", days: 0, required: true, law: "校園性別事件防治準則第28條" },
-      { id: 3, name: "分別通知雙方家長（不得透露對方資訊）", days: 0, required: true, law: "性平法第22條，未成年應通知法定代理人" },
-      { id: 4, name: "收件單位3日內交性平會處理", days: 3, required: true, law: "性平法第33條第1項" },
-      { id: 5, name: "書面通知申請人受理與否", days: 20, required: true, law: "性平法第32條，接獲申請後20日內書面通知" },
-      {
-        id: 6, name: "性平會組成調查小組", days: 25, required: true,
-        law: "性平法第33條",
-        composition: "女性委員≥1/2；具調查專業素養之專家學者≥1/3（學校）；行為人為校長/教師/職員時全部外聘",
-        crossSchoolNote: "當事人分屬不同學校時，調查小組應有被害人現所屬學校之代表（除非被害人要求且性平會認定無必要）"
-      },
-      { id: 7, name: "調查小組進行調查（分別訪談，應避免重複詢問）", days: 40, required: true, law: "性平法第33條，應避免重複詢問" },
-      { id: 8, name: "完成調查報告（可延長2次，每次不逾1個月）", days: 60, required: true, law: "性平法第36條，2個月內完成，可延長2次" },
-      { id: 9, name: "性平會提出調查報告及處理建議", days: 65, required: true, law: "性平法第36條第2項" },
-      { id: 10, name: "學校/主管機關議處", days: 120, required: true, law: "性平法第36條第3項，接獲調查報告後2個月內議處" },
-      { id: 11, name: "書面通知當事人結果（附調查報告）", days: 125, required: true, law: "性平法第36條第3項" },
-      { id: 12, name: "告知申復途徑（收到通知次日起30日內可申復）", days: 155, required: true, law: "性平法第37條" },
-      { id: 13, name: "執行懲處與輔導措施", days: 130, required: true, law: "性平法第25條" },
-      { id: 14, name: "輔導成效追蹤", days: 180, required: true, law: "性平法第26條" },
-      { id: 15, name: "結案歸檔", days: 210, required: true, law: "性平法相關規定" }
+      { id: 1, name: "通報學校權責人員及主管機關（校安通報）", due: { from: "report", add: 24, unit: "hour" }, required: true,
+        law: "性平法第22條第1項第1款：知悉後立即通報學校權責人員，由其向學校主管機關通報，至遲不得超過24小時；準則第17條第1項：通報時應保密當事人身分" },
+      { id: 16, name: "依兒少權法、性侵害犯罪防治法等向社政主管機關通報", due: { from: "report", add: 24, unit: "hour" }, required: false,
+        law: "性平法第22條第1項第2款：依性侵害犯罪防治法、兒童及少年福利與權益保障法等規定通報，至遲不得超過24小時" },
+      { id: 2, name: "必要之處置（減低互動、調整課表座位等，以保障受教權）", due: null, required: true,
+        law: "性平法第24條；準則第26條：處置應經性平會決議通過後執行，並報主管機關備查；當事人非本校人員時應通知其所屬學校" },
+      { id: 3, name: "告知當事人及法定代理人權益與救濟途徑、提供協助（分別通知，不得透露對方資訊）", due: null, required: true,
+        law: "性平法第25條（告知權益及救濟途徑、心理諮商輔導等協助）、第23條第2項（身分保密）；準則第27、28條" },
+      { id: 17, name: "（無管轄權時）移送有管轄權學校並通知當事人", due: { from: "report", add: 7, unit: "workday" }, required: false,
+        law: "準則第16條第1項：無管轄權者應於7個工作日內移送，並通知當事人" },
+      { id: 4, name: "收件單位交性平會調查處理", due: { from: "report", add: 3, unit: "day" }, required: true,
+        law: "性平法第33條第1項；準則第19條第2項：收件後3日內將事證資料交付性平會" },
+      { id: 19, name: "性平會決議受理（完成日期＝受理日，為調查期限起算日）", due: { from: "report", add: 20, unit: "day" }, required: true,
+        law: "性平法第32條第1項：須於接獲申請或檢舉20日內書面通知是否受理，故至遲應於此期限內決議；受理日為第36條「2個月內完成調查」的起算日" },
+      { id: 5, name: "書面通知是否受理", due: { from: "report", add: 20, unit: "day" }, required: true,
+        law: "性平法第32條第1、3項：接獲申請或檢舉後20日內書面通知；不受理應敘明理由；準則第21條第1項：並告知申復期限及受理單位" },
+      { id: 18, name: "（不受理時）追蹤申復期間", due: { from: 5, add: 20, unit: "day" }, required: false,
+        law: "性平法第32條第4項：接獲不受理通知之次日起20日內得申復（以一次為限）；準則第21條第4項：接獲申復後交性平會重新討論，20日內書面通知申復結果" },
+      { id: 6, name: "性平會成立調查小組", due: null, required: true,
+        law: "性平法第33條第2至4項；準則第22、23條",
+        composition: "3人或5人為原則（準則第22條第1項）；女性成員不得少於1/2；具校園性別事件調查專業素養之專家學者於學校應占1/3以上；行為人為校長、教師、職員或工友時，應成立調查小組且成員全部外聘；當事人之輔導人員、性平會會務主管及承辦人應迴避調查（準則第22條第3項）",
+        crossSchoolNote: "當事人分屬不同學校：調查小組應有被害人現所屬學校之代表，但被害人等要求不通知且經性平會認定無必要者除外（性平法第33條第4項）。事件管轄學校與行為人現所屬學校不同：應以書面通知行為人現所屬學校派代表參與調查，被通知學校不得拒絕（準則第12條）。行為人二人以上分屬不同學校：由先受理之行為人所屬學校管轄，相關學校應派代表參與（準則第15條）。" },
+      { id: 7, name: "調查（書面通知配合、避免重複詢問、禁止私下聯繫或散布）", due: null, required: true,
+        law: "性平法第23條第1項（避免重複詢問）、第33條第5項；準則第24條（書面通知並載明不得私下聯繫或散布、權力不對等者避免對質、不得要求當事人提交自述或切結）" },
+      { id: 8, name: "完成調查", due: { from: 19, add: 2, unit: "month" }, maxExtensions: 2, required: true,
+        law: "性平法第36條第1項：受理申請或檢舉後2個月內完成；必要時得延長2次，每次不得逾1個月，並應通知申請人、被害人、檢舉人及行為人" },
+      { id: 9, name: "性平會審議調查報告，以書面向學校提出報告及處理建議（完成日期＝學校接獲報告日）", due: null, required: true,
+        law: "性平法第36條第2項；準則第30條第1項：學校之事實認定應依據性平會調查報告" },
+      { id: 20, name: "（建議改變行為人身分時）通知行為人限期書面陳述意見", due: null, required: false,
+        law: "準則第30條第2、3項；性平法第26條第5項" },
+      { id: 21, name: "議處前通知被害人限期陳述意見", due: null, required: true,
+        law: "準則第30條第6項：議處決定前，權責單位應通知被害人、其法定代理人或實際照顧者限期以書面或言詞提出陳述意見" },
+      { id: 10, name: "學校議處（自行或移送權責機關）", due: { from: 9, add: 2, unit: "month" }, required: true,
+        law: "性平法第36條第3項：接獲調查報告後2個月內議處；第26條（懲處及心理諮商輔導等處置）；準則第30條第4項：議處單位不得要求性平會重新調查或自行調查" },
+      { id: 11, name: "書面通知處理結果（附調查報告、告知申復）", due: { from: 9, add: 2, unit: "month" }, required: true,
+        law: "性平法第36條第3項：與議處同在接獲報告後2個月內，以書面載明事實及理由通知申請人、被害人、檢舉人及行為人；準則第32條第1、2項：一併提供調查報告並告知申復期限及受理單位" },
+      { id: 12, name: "追蹤申復期間", due: { from: 11, add: 30, unit: "day" }, required: true,
+        law: "性平法第37條第1、2項：收到書面通知次日起30日內得申復，以一次為限；行為人為教職員工者，申請人或被害人得逕向主管機關申復（以書面通知完成日估算收到日）" },
+      { id: 22, name: "（提出申復時）接獲申復、組成審議小組（完成日期＝接獲申復日）", due: null, required: false,
+        law: "準則第32條第4項第1至3款：審議小組3人或5人，女性≥1/2，具調查專業素養者≥1/3；原性平會委員及原調查小組成員不得擔任" },
+      { id: 23, name: "（提出申復時）作成申復決定並書面通知", due: { from: 22, add: 30, unit: "day" }, required: false,
+        law: "準則第32條第4項第1款：接獲申復後30日內作成附理由之決定；性平法第39條：不服申復結果者，得於接獲通知次日起30日內依教師法、申訴等規定救濟" },
+      { id: 13, name: "執行懲處與處置（心理諮商輔導、經同意之道歉、8小時性平課程等）", due: null, required: true,
+        law: "性平法第26條第2項；準則第31條：處置之性質、執行方式、期間及不配合之效果應載明於書面通知" },
+      { id: 14, name: "輔導與追蹤（行為人轉學時，1個月內通報次一就讀學校）", due: null, required: true,
+        law: "性平法第25條、第28條第2項：行為人為學生轉學者，認有追蹤輔導必要時，應於知悉後1個月內通報次一就讀學校" },
+      { id: 24, name: "處理情形、檢核表、調查報告及會議紀錄報主管機關", due: null, required: true,
+        law: "準則第40條第1項：調查報告經性平會議決後報所屬主管機關；有申復者於申復審議完成後報送申復結果" },
+      { id: 15, name: "結案歸檔（檔案資料保存25年）", due: null, required: true,
+        law: "性平法第28條第1項；準則第34條：指定專責單位或人員保存25年；準則第25條：原始文書封存、對外文書以代號為之" }
     ]
   },
   dropout: {
     name: "中輟事件",
     icon: "📤",
     color: "#d35400",
-    desc: "臺北市國民中小學中輟通報及復學輔導要點",
-    dayMode: "calendar",
+    desc: "中輟通報及復學輔導辦法（109.06.08）、臺北市實施要點（107.07.20）",
+    // 法規未規定追蹤頻率與結案條件，相關步驟不設期限（不判逾期）
+    dayMode: "chain",
+    incidentDateLabel: "首次未到校日期",
     steps: [
-      { id: 1, name: "確認中輟（未請假連續3日以上未到校）", days: 3, required: true, law: "中輟生通報辦法第2條，連續3日以上" },
-      { id: 2, name: "聯繫家長確認原因", days: 3, required: true, law: "學校基本處理程序" },
-      { id: 3, name: "即時上網通報教育部中輟生通報網（www.mlss.edu.tw）", days: 3, required: true, law: "臺北市實施要點第5條，即時上網通報" },
-      { id: 4, name: "書面函報中心學校、區公所強迫入學委員會、社會局", days: 8, required: true, law: "臺北市實施要點第5條，5日內書面函報" },
-      { id: 5, name: "建立中輟生個人檔案（填妥臺北市中輟生個人檔案表）", days: 8, required: true, law: "臺北市實施要點，建置個人檔案卷宗" },
-      { id: 6, name: "第一次追蹤聯繫（電話、家訪等多元方式）", days: 10, required: true, law: "臺北市實施要點，建立追蹤紀錄" },
-      { id: 7, name: "定期追蹤聯繫（每2週至少1次）", days: 17, required: true, law: "臺北市實施要點，平均2週1次多元方式聯繫" },
-      { id: 8, name: "視需要轉介社會局/警察局/少年輔導委員會", days: 21, required: false, law: "臺北市實施要點第8條，轉介相關單位" },
-      { id: 9, name: "持續追蹤（每2週至少1次，重複提醒）", days: 31, required: true, law: "臺北市實施要點" },
-      { id: 10, name: "持續追蹤（每2週至少1次）", days: 45, required: true, law: "臺北市實施要點" },
-      { id: 11, name: "召開鑑定復學輔導前置會議（有復學意願時）", days: 50, required: true, law: "臺北市實施要點第9條" },
-      { id: 12, name: "召開鑑定復學輔導就讀小組會議", days: 57, required: true, law: "臺北市實施要點第9條，前置會議後5工作天內召開" },
-      { id: 13, name: "即時上網通報復學", days: 60, required: true, law: "臺北市實施要點第7條，即時通報復學" },
-      { id: 14, name: "書面通知中心學校、區公所、社會局復學", days: 63, required: true, law: "臺北市實施要點第7條，復學後3日" },
-      { id: 15, name: "復學後持續輔導追蹤（至少每月1次，持續3個月）", days: 90, required: true, law: "臺北市實施要點，輔導追蹤" },
-      { id: 16, name: "結案處理（復學穩定3個月以上）", days: 150, required: true, law: "臺北市實施要點，穩定就學後結案" }
+      { id: 2, name: "聯繫家長、瞭解未到校原因", due: null, required: true,
+        law: "實務作法：學生未到校即應聯繫家長；法規未定時限" },
+      { id: 1, name: "認定中輟（未請假或不明原因連續3日未到校；完成日期＝認定日）", due: { from: "incident", add: 2, unit: "workday" }, required: true,
+        law: "中輟辦法第2條第1項第2款、臺北市實施要點第2點：未經請假、請假未獲准或不明原因未到校上課連續達3日以上（本系統以首次未到校日起第3個上課日計）；強迫入學條例第8條之1" },
+      { id: 3, name: "即時上網通報（全國中輟生通報及復學系統）", due: { from: 1, add: 0, unit: "workday" }, required: true,
+        law: "臺北市實施要點第5點：學校應即時上網通報；中輟辦法第3條第2項第1款：通報並傳送學生檔案資料列管（交換至警政署協尋）" },
+      { id: 4, name: "書面函報中心學校、區公所強迫入學委員會及社會局", due: { from: 1, add: 5, unit: "day" }, required: true,
+        law: "臺北市實施要點第5點：5日內以書面函報；中輟辦法第3條第2項第2款：函送強迫入學委員會執行強迫入學程序" },
+      { id: 5, name: "建立學生檔案（輟學及通報日期、聯絡資訊、輔導紀錄等）", due: null, required: true,
+        law: "中輟辦法第7條：詳細記載未入學、輟學日期、通報日期、聯絡資訊、輔導紀錄、復學日期、再度輟學情形及追蹤輔導紀錄，並定期檢討輔導成效" },
+      { id: 17, name: "（家庭清寒、重大變故或親職功能不彰時）報市府提供救助或福利服務", due: null, required: false,
+        law: "中輟辦法第4條：檢具學生及家庭資料報直轄市政府提供必要之救助或福利服務，並得請家庭教育中心提供親職教育諮詢" },
+      { id: 6, name: "家訪及多元方式追蹤聯繫並記錄", due: null, required: true,
+        law: "臺北市實施要點第3點第2款（學校辦理家訪、輔導）；強迫入學條例第9條（強迫入學委員會派員家庭訪問）；法規未定頻率" },
+      { id: 8, name: "（視需要）轉介警政、社政、少年輔導委員會等協尋輔導", due: null, required: false,
+        law: "臺北市實施要點第8點：鑑定復學輔導就讀小組評估後轉介警政、社政或其他相關單位" },
+      { id: 7, name: "定期追蹤協尋並記錄（法規未定頻率，依學校輔導機制）", due: null, required: true,
+        law: "中輟辦法第3條第6項：通報、協尋及協助復學至學生滿15歲之該學年度結束為止；第7條：定期檢討輔導成效" },
+      { id: 9, name: "定期檢討輔導成效", due: null, required: false,
+        law: "中輟辦法第7條" },
+      { id: 10, name: "持續追蹤協尋（至復學或滿15歲之該學年度結束）", due: null, required: false,
+        law: "中輟辦法第3條第6項" },
+      { id: 18, name: "（尋獲時）即時上網通報尋獲", due: null, required: false,
+        law: "臺北市實施要點第6點：中輟生經尋獲後，學校應即時上網通報" },
+      { id: 19, name: "（有復學意願時）協助填寫復學申請書（完成日期＝起算日）", due: null, required: false,
+        law: "臺北市實施要點第9點：由輔導室儘速協助填寫復學申請書" },
+      { id: 11, name: "（有復學意願時）召開鑑定復學輔導前置會議", due: { from: 19, add: 5, unit: "workday" }, required: false,
+        law: "臺北市實施要點第9點：協洽教務、學務、輔導人員、導師及家長召開前置會議，研擬復學觀察機制及復學輔導課程" },
+      { id: 12, name: "（有復學意願時）召開鑑定復學輔導會議", due: { from: 19, add: 5, unit: "workday" }, required: false,
+        law: "臺北市實施要點第9點：於5個工作天內召開（要點未明定起算點，本系統自填寫復學申請書日起算，從嚴計算）；第10點：復學編班原則" },
+      { id: 20, name: "（復學時）學生返校復學（完成日期＝復學日）", due: null, required: false,
+        law: "中輟辦法第2條第1項第3款" },
+      { id: 13, name: "（復學時）即時上網通報復學", due: { from: 20, add: 0, unit: "workday" }, required: false,
+        law: "中輟辦法第5條；臺北市實施要點第7點：復學後即時上網通報" },
+      { id: 14, name: "（復學時）書面通知中心學校、區公所強迫入學委員會、社會局及轉介單位", due: null, required: false,
+        law: "臺北市實施要點第7點（未定期限，宜儘速）" },
+      { id: 15, name: "（復學時）復學輔導：課業補救、適性教育，優先列為輔導對象", due: null, required: false,
+        law: "中輟辦法第6條；臺北市實施要點第11、12點" },
+      { id: 16, name: "結案（復學穩定，或已達滿15歲之該學年度結束）", due: null, required: true,
+        law: "中輟辦法第3條第6項。法規未定結案條件；臺北市實施要點第15點以「復學持續3個月以上」為敘獎基準，可作為穩定就學之參考" }
     ]
   },
   food_poison: {
     name: "食物中毒事件",
     icon: "🍱",
     color: "#b7770d",
-    desc: "校安通報作業要點＋臺北市食品中毒危機處理規定",
-    dayMode: "mixed", // 前8步以小時計
+    desc: "校安通報作業要點（112.11.30）、臺北市校園疑似食品中毒危機處理工作要領",
+    // 前段以小時計（自事件當日 00:00 起算）；後段為學校作業之建議期限，非法定期限
+    dayMode: "mixed",
     steps: [
-      { id: 1, name: "緊急送醫、啟動危機處理小組", hours: 0, required: true, law: "緊急處置，生命安全優先" },
-      { id: 2, name: "通知家長（電話立即聯繫）", hours: 0, required: true, law: "家長知情權" },
-      { id: 3, name: "電話通報教育局、衛生局、教育部", hours: 0.25, required: true, law: "臺北市食品中毒危機處理規定，15分鐘內電話通報" },
-      { id: 4, name: "停止供應可疑食品、保全現場", hours: 0, required: true, law: "食品安全衛生管理法，立即停止供應" },
-      { id: 5, name: "封存可疑食物留樣備驗（至少300克以上）", hours: 0, required: true, law: "食安法，保留食物檢體供衛生局檢驗" },
-      { id: 6, name: "完成校安系統通報", hours: 2, required: true, law: "臺北市規定，2小時完成校安通報" },
-      { id: 7, name: "書面通報教育局", hours: 12, required: true, law: "臺北市規定，12小時內書面通報" },
-      { id: 8, name: "法定校安通報完成（乙級事件）", hours: 24, required: true, law: "校安通報作業要點，食品中毒乙級事件24小時內通報" },
-      { id: 9, name: "提供就醫學生名冊及症狀資料給衛生局", days: 1, required: true, law: "配合衛生局流行病學調查" },
-      { id: 10, name: "配合衛生局進行流行病學調查", days: 1, required: true, law: "食品安全衛生管理法，配合主管機關調查" },
-      { id: 11, name: "協助家長申辦學生平安保險理賠", days: 3, required: true, law: "學平險相關規定" },
-      { id: 12, name: "完成事件調查報告（食材來源、可能原因）", days: 7, required: true, law: "學校內部行政程序" },
-      { id: 13, name: "環境與流程改善措施（廚房、廠商、SOP）", days: 14, required: true, law: "食安法，後續管理改善" },
-      { id: 14, name: "追蹤受影響學生健康恢復狀況", days: 21, required: true, law: "學校照護義務" },
-      { id: 15, name: "結案報告（陳報主管機關）", days: 30, required: true, law: "行政程序，結案陳報" }
+      { id: 1, name: "緊急送醫、啟動危機處理小組", hours: 0, required: true,
+        law: "臺北市校園疑似食品中毒危機處理工作要領：先送醫、緊急處理，成立危機處理小組；生命安全優先" },
+      { id: 2, name: "通知家長、登錄送醫學生名冊", hours: 0, required: true,
+        law: "臺北市工作要領：登錄送醫學生班級、姓名及醫院，並通知家長" },
+      { id: 3, name: "電話通報教育局（督學室、體育及衛生保健科）及衛生局食品藥物管理科", hours: 0.25, required: true,
+        law: "臺北市工作要領：事件發生後15分鐘內電話通報（依臺北市各校據以訂定之處理程序及自我檢核表整理，正式文件請以教育局最新版本為準）" },
+      { id: 4, name: "停止供應可疑食品、保全現場", hours: 0, required: true,
+        law: "臺北市工作要領：封存現場" },
+      { id: 5, name: "封存午餐留樣及可疑食品、協助衛生局採檢", hours: 0, required: true,
+        law: "臺北市工作要領：封存午餐留樣並附留樣紀錄單，協助衛生局採集檢體" },
+      { id: 6, name: "緊急事件通報主管教育行政機關（電話、傳真等）", hours: 2, required: true,
+        law: "校園安全及災害事件通報作業要點第4點：師生二人以上中毒列為緊急事件；第6點第2項：應立即應變處理，即時以電話、傳真等通報，至遲不得逾2小時（第3步15分鐘內電話通報即可涵蓋）" },
+      { id: 7, name: "傳真「疑似食品中毒事件簡速報告單」予教育局體衛科及衛生局食藥科", hours: 12, required: true,
+        law: "臺北市工作要領：約12小時內以簡速報告單書面通報（同第3步，正式時限以教育局最新版本為準）" },
+      { id: 8, name: "校安通報網通報", hours: 24, required: true,
+        law: "校園安全及災害事件通報作業要點第6點第1項：依法規通報事件至遲不得逾24小時（一般校安事件為72小時，本系統以較嚴格者計）" },
+      { id: 16, name: "（經護理師評估涉及傳染病時）傳染病通報", hours: 48, required: false,
+        law: "臺北市工作要領：48小時內依傳染病通報系統通報（同第3步，正式時限以教育局最新版本為準）" },
+      { id: 9, name: "提供就醫學生名冊及症狀資料予衛生局", days: 1, advisory: true, required: true,
+        law: "配合衛生局疫情調查（期限為學校作業建議）" },
+      { id: 10, name: "配合衛生局進行流行病學調查", days: 1, advisory: true, required: true,
+        law: "臺北市工作要領：配合流行病學調查（期限為學校作業建議）" },
+      { id: 11, name: "協助家長申辦學生團體保險理賠", days: 3, advisory: true, required: true,
+        law: "學生團體保險相關規定（期限為學校作業建議）" },
+      { id: 12, name: "完成事件調查報告（食材來源、可能原因）", days: 7, advisory: true, required: true,
+        law: "學校內部行政程序（期限為學校作業建議）" },
+      { id: 13, name: "環境與流程改善（廚房、廠商、SOP），加強飲食衛生宣導", days: 14, advisory: true, required: true,
+        law: "臺北市工作要領：檢討供餐作業並加強宣導；廠商供應之食品致中毒者得專案求償（期限為學校作業建議）" },
+      { id: 14, name: "追蹤受影響學生健康恢復狀況", days: 21, advisory: true, required: true,
+        law: "學校照護（期限為學校作業建議）" },
+      { id: 15, name: "結案報告（陳報主管機關）", days: 30, advisory: true, required: true,
+        law: "行政程序（期限為學校作業建議）" }
     ]
   }
 };
@@ -1761,7 +1882,7 @@ function getStepStatus(typeConf, step, incident, today) {
   if (ddl.waiting) return { key: "todo", label: ddl.missingDate ? "待填起算日" : "待前一步", waiting: true };
 
   const diff = diffCalendarDays(today, ddl.date);
-  if (diff < 0) return { key: "overdue", label: "逾期", days: diff };
+  if (diff < 0) return { key: "overdue", label: step.advisory ? "超過建議期限" : "逾期", days: diff };
   if (diff <= 3) return { key: "soon", label: "即將到期", days: diff };
   return { key: "todo", label: "待辦", days: diff };
 }
@@ -1769,10 +1890,10 @@ function getStepStatus(typeConf, step, incident, today) {
 function formatDeadline(typeConf, step, incident) {
   const ddl = getStepDeadline(typeConf, step, incident);
   if (!ddl) return "—";
-  if (ddl.none) return "儘速（準則未定期限）";
+  if (ddl.none) return "儘速（法規未定期限）";
   if (ddl.waiting) {
     const ref = ddl.anchor ? `步驟 ${ddl.anchor.no} ` : "前一步";
-    const span = `+${step.due.add} ${DUE_UNIT_LABEL[step.due.unit]}`;
+    const span = step.due.add === 0 ? "當日" : `+${step.due.add} ${DUE_UNIT_LABEL[step.due.unit]}`;
     return ddl.missingDate
       ? `請先填寫${ref}的完成日期（${span}）`
       : `待${ref}完成後起算（${span}）`;
@@ -1783,7 +1904,7 @@ function formatDeadline(typeConf, step, incident) {
     return `${step.hours} 小時內（${fmtDate(ddl.date)}）`;
   }
   if (ddl.unit === "hour") return `${ddl.add} 小時內（至遲 ${fmtDate(ddl.date)}）`;
-  return fmtDate(ddl.date) + (ddl.extended ? `（已延長 ${ddl.extended} 次）` : "");
+  return fmtDate(ddl.date) + (ddl.extended ? `（已延長 ${ddl.extended} 次）` : "") + (step.advisory ? "（建議期限，非法定）" : "");
 }
 
 /* ==========================================================
@@ -2295,7 +2416,7 @@ function IncidentCard({ incident, summary, onOpen, onDelete }) {
         {closed && <span className="closed-badge">🏁 已結案</span>}
       </div>
       <div className="case-name">{incident.name}</div>
-      <div className="meta">事件發生日：{fmtDate(parseDate(incident.incidentDate))}</div>
+      <div className="meta">{(typeConf.incidentDateLabel || "事件發生日期").replace(/期$/, "")}：{fmtDate(parseDate(incident.incidentDate))}</div>
 
       <div className="progress-wrap" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label="完成進度">
         <div className="progress-bar" style={{ width: percent + "%" }} />
@@ -2344,13 +2465,13 @@ function NewIncidentView({ today, onCancel, onCreate }) {
     name: !name.trim() ? "請輸入案件名稱" : name.trim().length > NAME_MAX ? `案件名稱請勿超過 ${NAME_MAX} 字` : null,
     date: !date ? "請選擇事件發生日期"
       : !parsedDate ? "日期格式不正確"
-      : date > todayStr ? "事件發生日期不可晚於今天"
+      : date > todayStr ? "日期不可晚於今天"
       : null,
     reportDate: !usesReportDate ? null
-      : !reportDate ? "請選擇接獲檢舉／知悉日期"
+      : !reportDate ? "請選擇此日期"
       : !parseDate(reportDate) ? "日期格式不正確"
-      : reportDate > todayStr ? "接獲檢舉日期不可晚於今天"
-      : date && reportDate < date ? "接獲檢舉日期不可早於事件發生日期"
+      : reportDate > todayStr ? "日期不可晚於今天"
+      : date && reportDate < date ? "不可早於事件發生日期"
       : null
   };
   const hasError = Object.values(errors).some(Boolean);
@@ -2431,7 +2552,7 @@ function NewIncidentView({ today, onCancel, onCreate }) {
               : <div className="field-help">{name.trim().length} / {NAME_MAX} 字</div>}
           </div>
           <div className="form-row">
-            <label htmlFor="case-date">事件發生日期<span className="req">*</span></label>
+            <label htmlFor="case-date">{(type && INCIDENT_TYPES[type].incidentDateLabel) || "事件發生日期"}<span className="req">*</span></label>
             <input
               id="case-date"
               type="date"
@@ -2442,11 +2563,11 @@ function NewIncidentView({ today, onCancel, onCreate }) {
             />
             {touched && errors.date
               ? <div className="field-error">{errors.date}</div>
-              : <div className="field-help">{usesReportDate ? "僅供紀錄，期限不由此日起算" : "所有期限皆由此日起算"}</div>}
+              : <div className="field-help">{usesReportDate ? "僅供紀錄，期限不由此日起算" : "期限由此日起算"}</div>}
           </div>
           {usesReportDate && (
             <div className="form-row">
-              <label htmlFor="case-report-date">接獲檢舉／知悉日期<span className="req">*</span></label>
+              <label htmlFor="case-report-date">{INCIDENT_TYPES[type].reportDateLabel || "接獲檢舉／知悉日期"}<span className="req">*</span></label>
               <input
                 id="case-report-date"
                 type="date"
@@ -2458,7 +2579,7 @@ function NewIncidentView({ today, onCancel, onCreate }) {
               />
               {touched && errors.reportDate
                 ? <div className="field-error">{errors.reportDate}</div>
-                : <div className="field-help">24 小時通報、20 工作日書面通知由此日起算</div>}
+                : <div className="field-help">24 小時通報、是否受理之書面通知等期限由此日起算</div>}
             </div>
           )}
         </div>
@@ -2594,7 +2715,7 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
   const updateReportDate = (value) => {
     if (isClosed || !parseDate(value) || value > toDateInputValue(new Date()) || value < incident.incidentDate) return;
     onUpdate(inc => inc.reportDate === value ? inc
-      : appendLog({ ...inc, reportDate: value }, `📅 接獲檢舉日改為 ${fmtDate(parseDate(value))}`, "auto"));
+      : appendLog({ ...inc, reportDate: value }, `📅 ${(typeConf.reportDateLabel || "接獲檢舉日期").replace(/期$/, "")}改為 ${fmtDate(parseDate(value))}`, "auto"));
   };
   const updateNote = (stepId, text) => {
     if (isClosed) return;
@@ -2702,10 +2823,10 @@ function ProcessCheckView({ incident, today, notify, onBack, onUpdate }) {
         </div>
         <h2>{incident.name}</h2>
         <div className="meta">
-          事件發生日：{fmtDate(parseDate(incident.incidentDate))}　·
+          {(typeConf.incidentDateLabel || "事件發生日期").replace(/期$/, "")}：{fmtDate(parseDate(incident.incidentDate))}　·
           {typeConf.usesReportDate && (
             <>
-              <label htmlFor="report-date-edit">接獲檢舉日：</label>
+              <label htmlFor="report-date-edit">{(typeConf.reportDateLabel || "接獲檢舉日期").replace(/期$/, "")}：</label>
               {isClosed ? (
                 fmtDate(parseDate(incident.reportDate || incident.incidentDate))
               ) : (
@@ -3349,16 +3470,44 @@ function runSelfTests() {
   const conf = INCIDENT_TYPES.gender;
   const base = { id: "t", type: "gender", incidentDate: "2026-10-01", checkedSteps: {}, status: "active" };
   const today = d("2026-10-22");
-  const step4 = conf.steps.find(s => s.id === 4);   // +3 日 → 10/04
-  const step5 = conf.steps.find(s => s.id === 5);   // +20 日 → 10/21
-  const step6 = conf.steps.find(s => s.id === 6);   // +25 日 → 10/26
-  const step7 = conf.steps.find(s => s.id === 7);   // +40 日 → 11/10
-  eq("已勾選 → 已完成", getStepStatus(conf, step4, { ...base, checkedSteps: { 4: true } }, today).key, "done");
-  eq("截止日已過 → 逾期", getStepStatus(conf, step5, base, today), { key: "overdue", label: "逾期", days: -1 });
-  eq("4 天內 → 待辦（>3 天）", getStepStatus(conf, step6, base, today).key, "todo");
-  eq("3 天內 → 即將到期", getStepStatus(conf, step6, base, d("2026-10-23")).key, "soon");
-  eq("遠期 → 待辦", getStepStatus(conf, step7, base, today).key, "todo");
-  eq("已結案未勾選 → 未完成（不計逾期）", getStepStatus(conf, step5, { ...base, status: "closed" }, today), { key: "todo", label: "未完成" });
+  const gs = id => findStep(conf, id);
+  const gDone = (id, date) => ({ ...base, checkedSteps: { [id]: true }, completedDates: { [id]: date } });
+  eq("已勾選 → 已完成", getStepStatus(conf, gs(4), { ...base, checkedSteps: { 4: true } }, today).key, "done");
+  eq("截止日已過 → 逾期（受理通知 20 日）", getStepStatus(conf, gs(5), base, today), { key: "overdue", label: "逾期", days: -1 });
+  eq("性平：交性平會 3 日", toDateInputValue(getStepDeadline(conf, gs(4), base).date), "2026-10-04");
+  eq("性平：調查期限自受理日起 2 個月", toDateInputValue(getStepDeadline(conf, gs(8), gDone(19, "2026-08-26")).date), "2026-10-26");
+  eq("4 天內 → 待辦（>3 天）", getStepStatus(conf, gs(8), gDone(19, "2026-08-26"), today).key, "todo");
+  eq("3 天內 → 即將到期", getStepStatus(conf, gs(8), gDone(19, "2026-08-26"), d("2026-10-23")).key, "soon");
+  eq("性平：議處自接獲報告起 2 個月", toDateInputValue(getStepDeadline(conf, gs(10), gDone(9, "2026-10-01")).date), "2026-12-01");
+  eq("遠期 → 待辦", getStepStatus(conf, gs(10), gDone(9, "2026-10-01"), today).key, "todo");
+  eq("性平：申復期間 30 日", toDateInputValue(getStepDeadline(conf, gs(12), gDone(11, "2026-12-01")).date), "2026-12-31");
+  eq("已結案未勾選 → 未完成（不計逾期）", getStepStatus(conf, gs(5), { ...base, status: "closed" }, today), { key: "todo", label: "未完成" });
+
+  // 師對生：解聘辦法（日曆日 20 日、受理後 7 個工作日召開校事會議）
+  const t2 = INCIDENT_TYPES.bullying_t2s;
+  const tb = { id: "t2", type: "bullying_t2s", incidentDate: "2026-11-02", reportDate: "2026-11-06", checkedSteps: {}, completedDates: {}, status: "active" };
+  const tDl = (id, inc) => toDateInputValue(getStepDeadline(t2, findStep(t2, id), inc).date);
+  eq("師對生：書面通知受理 20 日（日曆天）", tDl(7, tb), "2026-11-26");
+  eq("師對生：校事會議 = 受理決議 + 7 工作日", tDl(24, { ...tb, checkedSteps: { 6: true }, completedDates: { 6: "2026-11-20" } }), "2026-12-01");
+  eq("師對生：調查報告 2 個月", tDl(10, { ...tb, checkedSteps: { 26: true }, completedDates: { 26: "2026-12-10" } }), "2027-02-10");
+  eq("師對生：提教評會 10 日", tDl(27, { ...tb, checkedSteps: { 11: true }, completedDates: { 11: "2027-02-20" } }), "2027-03-02");
+  eq("師對生：書面通知結果 10 日", tDl(13, { ...tb, checkedSteps: { 32: true }, completedDates: { 32: "2027-03-02" } }), "2027-03-12");
+  eq("師對生：受理審查 3 人投票", /共3人投票/.test(findStep(t2, 6).composition), true);
+
+  // 中輟：首次未到校日起第 3 個上課日認定；認定後 5 日內函報
+  const dr = INCIDENT_TYPES.dropout;
+  const db = { id: "dr", type: "dropout", incidentDate: "2026-11-05", checkedSteps: {}, completedDates: {}, status: "active" };
+  const dDl = (id, inc) => toDateInputValue(getStepDeadline(dr, findStep(dr, id), inc).date);
+  eq("中輟：週四首次未到校 → 下週一認定", dDl(1, db), "2026-11-09");
+  eq("中輟：函報 = 認定 + 5 日", dDl(4, { ...db, checkedSteps: { 1: true }, completedDates: { 1: "2026-11-09" } }), "2026-11-14");
+  eq("中輟：追蹤頻率法規未定 → 不判逾期", getStepStatus(dr, findStep(dr, 7), db, d("2027-12-31")).key, "todo");
+
+  // 食物中毒：建議期限標示
+  const fpc = INCIDENT_TYPES.food_poison;
+  const fpb = { id: "fp", type: "food_poison", incidentDate: "2026-10-01", checkedSteps: {}, status: "active" };
+  eq("食物中毒：建議期限標示", formatDeadline(fpc, findStep(fpc, 12), fpb), "2026/10/08（建議期限，非法定）");
+  eq("食物中毒：超過建議期限文字", getStepStatus(fpc, findStep(fpc, 12), fpb, today).label, "超過建議期限");
+  eq("食物中毒：校安通報網 24 小時", formatDeadline(fpc, findStep(fpc, 8), fpb), "24 小時內（2026/10/02）");
 
   // 食物中毒小時制
   const fp = INCIDENT_TYPES.food_poison;
@@ -3391,14 +3540,17 @@ function runSelfTests() {
   eq("終局實體處理：決議 + 15 工作日", ddlOf(12, ruled), "2027-03-04");
   eq("書面通知：終局 + 10 工作日", ddlOf(13, { ...b, checkedSteps: { 12: true }, completedDates: { 12: "2027-03-04" } }), "2027-03-18");
   eq("救濟期間：通知 + 30 日", ddlOf(14, { ...b, checkedSteps: { 13: true }, completedDates: { 13: "2027-03-18" } }), "2027-04-17");
-  eq("未定期限 → 不計逾期", getStepStatus(s2, st(4), b, d("2027-12-31")), { key: "todo", label: "待辦" });
-  eq("未定期限顯示", formatDeadline(s2, st(4), b), "儘速（準則未定期限）");
+  eq("審查小組：接獲檢舉 + 20 工作日", ddlOf(4, b), "2026-12-04");
+  eq("未定期限 → 不計逾期", getStepStatus(s2, st(2), b, d("2027-12-31")), { key: "todo", label: "待辦" });
+  eq("未定期限顯示", formatDeadline(s2, st(2), b), "儘速（法規未定期限）");
   eq("不適用 → 視同完成", getStepStatus(s2, st(19), { ...b, naSteps: { 19: true } }, today), { key: "done", label: "不適用", na: true });
   eq("不適用計入完成數", summarizeIncident({ ...b, naSteps: { 19: true }, checkedSteps: { 1: true } }, today).done, 2);
   eq("序號依流程順序", s2.steps.map(s => s.no).join(","), s2.steps.map((_, i) => i + 1).join(","));
-  eq("步驟 id 不重複", new Set(s2.steps.map(s => s.id)).size, s2.steps.length);
-  eq("起算步驟都存在且排在前面", s2.steps.every(s => !s.due || typeof s.due.from !== "number"
-    || (findStep(s2, s.due.from) && findStep(s2, s.due.from).no < s.no)), true);
+  Object.entries(INCIDENT_TYPES).forEach(([key, t]) => {
+    eq(`${t.name}：步驟 id 不重複`, new Set(t.steps.map(s => s.id)).size, t.steps.length);
+    eq(`${t.name}：起算步驟都存在且排在前面`, t.steps.every(s => !s.due || typeof s.due.from !== "number"
+      || (findStep(t, s.due.from) && findStep(t, s.due.from).no < s.no)), true);
+  });
 
   // 剩餘天數文字
   eq("已逾文字", describeDays(-2), { text: "已逾 2 天", tone: "overdue" });
